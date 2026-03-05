@@ -1,7 +1,9 @@
 # 🎬 YouTube Shorts Automation
 
 A fully automated, end-to-end YouTube Shorts creation and upload system that
-runs 24/7 via **GitHub Actions** — no server required.
+runs 24/7 via **GitHub Actions** — no server required, **100% free**.
+
+🌐 **Live site:** [https://shahamar-official.github.io/yt-automation.github.io/](https://shahamar-official.github.io/yt-automation.github.io/)
 
 ---
 
@@ -10,8 +12,8 @@ runs 24/7 via **GitHub Actions** — no server required.
 Every 6 hours the pipeline:
 
 1. 🔍 **Finds trending topics** from Google Trends and Reddit
-2. ✍️ **Writes a professional script** using OpenAI GPT (gpt-4o-mini)
-3. 🎙️ **Converts the script to speech** using OpenAI TTS (tts-1-hd)
+2. ✍️ **Writes a professional script** using smart templates (no paid API)
+3. 🎙️ **Converts the script to speech** using gTTS (Google Text-to-Speech — free)
 4. 🎬 **Creates a vertical 1080 × 1920 video** with Pexels stock footage and animated captions
 5. 🖼️ **Generates an eye-catching thumbnail** with Pillow
 6. 🚀 **Uploads to YouTube** with optimised title, tags, description, and thumbnail
@@ -28,9 +30,9 @@ src/pipeline.py  ─────────────────────
         │                                                       │
         ├─► src/trending.py      (Google Trends + Reddit)      │
         │         │ trending topic                              │
-        ├─► src/scriptwriter.py  (OpenAI GPT-4o-mini)          │
+        ├─► src/scriptwriter.py  (Template engine — free)      │
         │         │ title, script, scenes, tags, description    │
-        ├─► src/tts.py           (OpenAI TTS tts-1-hd)         │
+        ├─► src/tts.py           (gTTS — free)                 │
         │         │ audio MP3 + duration                        │
         ├─► src/video_creator.py (Pexels API + MoviePy)        │
         │         │ 1080×1920 MP4                               │
@@ -75,33 +77,33 @@ print(json.dumps({
 EOF
 ```
 
-### 3. Get an OpenAI API Key
+### 3. Get a Pexels API Key
 
-Visit [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
+Sign up at [pexels.com/api](https://www.pexels.com/api/) (free tier).
 
-### 4. Get a Pexels API Key
-
-Sign up at [pexels.com/api](https://www.pexels.com/api/) (free tier available).
-
-### 5. Add Secrets to GitHub
+### 4. Add Secrets to GitHub
 
 In your forked repository go to **Settings → Secrets and variables → Actions**
 and add the following secrets:
 
 | Secret name              | Value                                          |
 |--------------------------|------------------------------------------------|
-| `OPENAI_API_KEY`         | Your OpenAI API key                            |
 | `YOUTUBE_CLIENT_SECRET`  | Full JSON string of the OAuth2 client secret   |
 | `YOUTUBE_TOKEN`          | JSON string with `access_token`, `refresh_token`|
 | `PEXELS_API_KEY`         | Your Pexels API key                            |
 
-### 6. Enable GitHub Actions
+### 5. Enable GitHub Actions
 
 Go to the **Actions** tab in your repository and click **"I understand my
 workflows, go ahead and enable them"** if prompted.
 
 The workflow will run automatically every 6 hours, or you can trigger it
 manually via **Actions → YouTube Shorts Automation → Run workflow**.
+
+### 6. Enable GitHub Pages
+
+Go to **Settings → Pages** and set the source to **GitHub Actions**.
+The landing page will be published automatically on each push to `main`.
 
 ---
 
@@ -110,8 +112,8 @@ manually via **Actions → YouTube Shorts Automation → Run workflow**.
 | Step | Module | Description |
 |------|--------|-------------|
 | 1 | `src/trending.py` | Fetches daily trending searches from Google Trends (US) and top posts from Reddit r/popular. Scores topics by cross-source appearance. |
-| 2 | `src/scriptwriter.py` | Sends the topic to GPT-4o-mini with a detailed prompt. Returns title, narration, scene descriptions, tags, and YouTube description. |
-| 3 | `src/tts.py` | Converts the narration to an MP3 file using OpenAI `tts-1-hd` and measures audio duration. |
+| 2 | `src/scriptwriter.py` | Picks a curated script template and fills it with the trending topic. Returns title, narration, scene descriptions, tags, and YouTube description. |
+| 3 | `src/tts.py` | Converts the narration to an MP3 file using gTTS (Google Text-to-Speech) and measures audio duration. |
 | 4 | `src/video_creator.py` | Queries Pexels for portrait video clips per scene, assembles them with MoviePy, adds captions, overlays audio, and exports to MP4. |
 | 5 | `src/thumbnail.py` | Creates a gradient 1280 × 720 JPEG thumbnail with the video title and a topic emoji using Pillow. |
 | 6 | `src/uploader.py` | Uploads the video via the YouTube Data API v3 resumable upload endpoint, then attaches the thumbnail. |
@@ -126,22 +128,23 @@ Edit `config.py` to change:
 |---------|---------|-------------|
 | `VIDEO_FPS` | `30` | Output frame rate |
 | `FONT_SIZE` | `60` | Caption font size (px) |
-| `TTS_VOICE` | `"alloy"` | OpenAI TTS voice (`alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`) |
+| `TTS_LANG` | `"en"` | gTTS language code (e.g. `"en"`, `"es"`, `"fr"`) |
+| `TTS_SLOW` | `False` | Slow speaking speed (`True` / `False`) |
 | `YOUTUBE_CATEGORY_ID` | `"22"` | YouTube category (22 = People & Blogs) |
 | `PRIVACY_STATUS` | `"public"` | Upload privacy (`public`, `unlisted`, `private`) |
 | `MAX_VIDEOS_PER_RUN` | `1` | Videos per pipeline run |
 
 ---
 
-## Cost Estimates (per video)
+## Cost Per Video
 
-| Service | Usage | Approx. cost |
-|---------|-------|--------------|
-| OpenAI GPT-4o-mini | ~800 tokens | ~$0.001 |
-| OpenAI TTS tts-1-hd | ~300 characters | ~$0.015 |
-| Pexels API | Free tier | $0.00 |
-| GitHub Actions | ~10 min / run | Free (2,000 min/month included) |
-| **Total** | | **~$0.02 / video** |
+| Service | Usage | Cost |
+|---------|-------|------|
+| Script generation | Template engine | **$0.00** |
+| Text-to-Speech | gTTS (Google TTS) | **$0.00** |
+| Stock footage | Pexels API (free tier) | **$0.00** |
+| CI / CD | GitHub Actions (~10 min/run) | **$0.00** |
+| **Total** | | **$0.00** |
 
 ---
 

@@ -1,8 +1,9 @@
 """
-tts.py — Text-to-speech generation using the OpenAI TTS API.
+tts.py — Text-to-speech generation using gTTS (Google Text-to-Speech).
 
 Converts narration script text to an MP3 audio file and returns the file
-path together with the audio duration in seconds.
+path together with the audio duration in seconds.  Completely free — no
+API key required.
 """
 
 import logging
@@ -47,7 +48,7 @@ def _get_audio_duration(audio_path: Path) -> float:
 
 
 def generate_speech(script_text: str) -> tuple[Path, float]:
-    """Generate TTS audio for *script_text* using the OpenAI TTS API.
+    """Generate TTS audio for *script_text* using gTTS (Google Text-to-Speech).
 
     Args:
         script_text: The narration text to convert to speech.
@@ -57,34 +58,25 @@ def generate_speech(script_text: str) -> tuple[Path, float]:
         :class:`pathlib.Path` pointing to the generated MP3 file.
 
     Raises:
-        RuntimeError: If the OpenAI API is unavailable or misconfigured.
+        RuntimeError: If TTS generation fails.
     """
     try:
-        from openai import OpenAI  # type: ignore[import]
+        from gtts import gTTS  # type: ignore[import]
     except ImportError as exc:
-        raise RuntimeError("openai package is not installed") from exc
+        raise RuntimeError("gTTS package is not installed") from exc
 
-    if not config.OPENAI_API_KEY:
-        raise RuntimeError("OPENAI_API_KEY environment variable is not set")
-
-    client = OpenAI(api_key=config.OPENAI_API_KEY)
-
-    # Write to a named temp file so it persists after the API call
+    # Write to a named temp file so it persists after generation
     tmp_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
     audio_path = Path(tmp_file.name)
     tmp_file.close()
 
-    logger.info("Requesting TTS for %d characters of script text…", len(script_text))
+    logger.info("Generating TTS for %d characters of script text…", len(script_text))
     try:
-        response = client.audio.speech.create(
-            model=config.TTS_MODEL,
-            voice=config.TTS_VOICE,  # type: ignore[arg-type]
-            input=script_text,
-        )
-        response.stream_to_file(audio_path)  # type: ignore[arg-type]
+        tts = gTTS(text=script_text, lang=config.TTS_LANG, slow=config.TTS_SLOW)
+        tts.save(str(audio_path))
     except Exception as exc:
         audio_path.unlink(missing_ok=True)
-        raise RuntimeError(f"TTS API call failed: {exc}") from exc
+        raise RuntimeError(f"TTS generation failed: {exc}") from exc
 
     duration = _get_audio_duration(audio_path)
     logger.info("TTS audio saved to '%s' (%.2f s)", audio_path, duration)
