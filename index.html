@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Shorts Automation</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --green: #3fb950;
+            --red: #f85149;
+            --gold: #d29922;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+        /* Hero */
+        .hero {
+            text-align: center;
+            padding: 80px 0 60px;
+        }
+        .hero h1 {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+        }
+        .hero h1 span { color: var(--accent); }
+        .hero p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto 32px;
+        }
+        .badge-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 24px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .badge-free { background: rgba(63,185,80,.15); color: var(--green); border: 1px solid rgba(63,185,80,.3); }
+        .badge-auto { background: rgba(88,166,255,.15); color: var(--accent); border: 1px solid rgba(88,166,255,.3); }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 28px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: opacity .2s;
+        }
+        .btn:hover { opacity: .85; }
+        .btn-primary { background: var(--accent); color: var(--bg); }
+        .btn-outline { background: transparent; color: var(--accent); border: 1px solid var(--accent); margin-left: 12px; }
+
+        /* Pipeline */
+        .section { padding: 48px 0; }
+        .section h2 {
+            font-size: 1.8rem;
+            margin-bottom: 32px;
+            text-align: center;
+        }
+
+        .pipeline {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+        }
+        .step {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .step-num {
+            display: inline-block;
+            width: 32px; height: 32px;
+            line-height: 32px;
+            text-align: center;
+            border-radius: 50%;
+            background: var(--accent);
+            color: var(--bg);
+            font-weight: 700;
+            font-size: .9rem;
+            margin-bottom: 12px;
+        }
+        .step h3 { font-size: 1.1rem; margin-bottom: 8px; }
+        .step p { color: var(--text-muted); font-size: .95rem; }
+        .step .tool { color: var(--green); font-size: .85rem; margin-top: 8px; }
+
+        /* Cost */
+        .cost-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        .cost-table th, .cost-table td {
+            text-align: left;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .cost-table th { color: var(--text-muted); font-size: .85rem; text-transform: uppercase; }
+        .cost-table td.free { color: var(--green); font-weight: 600; }
+
+        /* Setup */
+        .setup-steps { list-style: none; counter-reset: setup; }
+        .setup-steps li {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px 20px 16px 54px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .setup-steps li::before {
+            counter-increment: setup;
+            content: counter(setup);
+            position: absolute;
+            left: 18px; top: 16px;
+            width: 26px; height: 26px;
+            line-height: 26px;
+            text-align: center;
+            border-radius: 50%;
+            background: var(--accent);
+            color: var(--bg);
+            font-weight: 700;
+            font-size: .85rem;
+        }
+        .setup-steps li strong { color: var(--text); }
+        .setup-steps li span { color: var(--text-muted); font-size: .9rem; }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 0;
+            color: var(--text-muted);
+            font-size: .9rem;
+            border-top: 1px solid var(--border);
+        }
+        footer a { color: var(--accent); text-decoration: none; }
+
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 1.8rem; }
+            .hero p { font-size: 1rem; }
+            .btn-outline { margin-left: 0; margin-top: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Hero -->
+    <section class="hero">
+        <h1>🎬 <span>YouTube Shorts</span> Automation</h1>
+        <p>
+            A fully automated, end-to-end YouTube Shorts creation and upload
+            system that runs 24/7 via GitHub Actions — completely free.
+        </p>
+        <div class="badge-row">
+            <span class="badge badge-free">💸 100% Free — No Paid APIs</span>
+            <span class="badge badge-auto">⚡ Runs on GitHub Actions</span>
+        </div>
+        <a class="btn btn-primary" href="https://github.com/ShahAmar-Official/yt-automation.github.io">View on GitHub</a>
+        <a class="btn btn-outline" href="https://github.com/ShahAmar-Official/yt-automation.github.io/fork">Fork &amp; Deploy</a>
+    </section>
+
+    <!-- Pipeline -->
+    <section class="section">
+        <h2>How It Works</h2>
+        <div class="pipeline">
+            <div class="step">
+                <div class="step-num">1</div>
+                <h3>🔍 Find Trending Topics</h3>
+                <p>Discovers the hottest topics from Google Trends and Reddit in real time.</p>
+                <div class="tool">pytrends + Reddit API (free)</div>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <h3>✍️ Generate Script</h3>
+                <p>Creates an engaging narration with title, scenes, tags, and description using smart templates.</p>
+                <div class="tool">Template engine (free, no API)</div>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <h3>🎙️ Text-to-Speech</h3>
+                <p>Converts the script into natural-sounding speech audio.</p>
+                <div class="tool">gTTS — Google Text-to-Speech (free)</div>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <h3>🎬 Create Video</h3>
+                <p>Assembles portrait video with stock footage, captions, and audio.</p>
+                <div class="tool">MoviePy + Pexels API (free)</div>
+            </div>
+            <div class="step">
+                <div class="step-num">5</div>
+                <h3>🖼️ Generate Thumbnail</h3>
+                <p>Designs an eye-catching 1280 × 720 thumbnail with dynamic text.</p>
+                <div class="tool">Pillow (free)</div>
+            </div>
+            <div class="step">
+                <div class="step-num">6</div>
+                <h3>🚀 Upload to YouTube</h3>
+                <p>Publishes the video with optimised metadata and thumbnail.</p>
+                <div class="tool">YouTube Data API v3 (free)</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Cost -->
+    <section class="section">
+        <h2>Cost Breakdown</h2>
+        <table class="cost-table">
+            <thead>
+                <tr><th>Service</th><th>Usage</th><th>Cost</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Script Generation</td><td>Template engine</td><td class="free">$0.00</td></tr>
+                <tr><td>Text-to-Speech</td><td>gTTS (Google TTS)</td><td class="free">$0.00</td></tr>
+                <tr><td>Stock Footage</td><td>Pexels API</td><td class="free">$0.00</td></tr>
+                <tr><td>Video Upload</td><td>YouTube Data API</td><td class="free">$0.00</td></tr>
+                <tr><td>CI / CD</td><td>GitHub Actions (~10 min/run)</td><td class="free">$0.00</td></tr>
+                <tr><td><strong>Total per video</strong></td><td></td><td class="free"><strong>$0.00</strong></td></tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- Setup -->
+    <section class="section">
+        <h2>Quick Setup</h2>
+        <ol class="setup-steps">
+            <li><strong>Fork this repository</strong> <span>— click the Fork button on GitHub</span></li>
+            <li><strong>Set up YouTube OAuth2 credentials</strong> <span>— via Google Cloud Console (free)</span></li>
+            <li><strong>Get a Pexels API key</strong> <span>— sign up at pexels.com/api (free)</span></li>
+            <li><strong>Add secrets to GitHub</strong> <span>— YOUTUBE_CLIENT_SECRET, YOUTUBE_TOKEN, PEXELS_API_KEY</span></li>
+            <li><strong>Enable GitHub Actions</strong> <span>— the pipeline runs automatically every 6 hours</span></li>
+        </ol>
+    </section>
+
+</div>
+
+<footer>
+    <p>
+        Built with ❤️ — <a href="https://github.com/ShahAmar-Official/yt-automation.github.io">GitHub</a>
+        · Licensed under MIT
+    </p>
+</footer>
+
+</body>
+</html>
