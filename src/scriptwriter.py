@@ -184,13 +184,17 @@ def _pick_template(topic: str) -> dict[str, str | list[str]]:
     Uses a hash so the same topic always produces the same template,
     ensuring consistency if the pipeline is re-run.
     """
-    idx = int(hashlib.md5(topic.encode()).hexdigest(), 16) % len(_TEMPLATES)
+    idx = int(hashlib.sha256(topic.encode()).hexdigest(), 16) % len(_TEMPLATES)
     return _TEMPLATES[idx]
 
 
 def _fill_template(template: dict[str, str | list[str]], topic: str) -> ScriptData:
     """Fill a template with the given *topic*."""
-    title = str(template["title"]).format(topic=topic)[:100].strip()
+    raw_title = str(template["title"]).format(topic=topic).strip()
+    # Truncate at word boundary if title exceeds 100 characters
+    if len(raw_title) > 100:
+        raw_title = raw_title[:97].rsplit(" ", 1)[0] + "…"
+    title = raw_title
     script = str(template["script"]).format(topic=topic).strip()
     scenes = [str(s) for s in template["scenes"]]  # type: ignore[union-attr]
     raw_tags = [str(t).format(topic=topic).strip().lstrip("#") for t in template["tags"]]  # type: ignore[union-attr]
