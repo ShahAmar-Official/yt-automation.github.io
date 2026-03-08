@@ -126,10 +126,17 @@ Edit `config.py` to change:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `VIDEO_FPS` | `30` | Output frame rate |
-| `FONT_SIZE` | `60` | Caption font size (px) |
+| `SUBTITLE_FONT_SIZE` | `80` | Caption font size (px) |
+| `SUBTITLE_STROKE_WIDTH` | `5` | Caption text outline thickness |
+| `SUBTITLE_MAX_WORDS` | `4` | Max words per caption burst |
+| `VIDEO_BITRATE` | `12000k` | Video encoding bitrate (higher = better quality) |
+| `VIDEO_PRESET` | `slow` | FFmpeg encoding preset (`slow` = higher quality) |
+| `AUDIO_BITRATE` | `256k` | Audio encoding bitrate |
+| `VIDEO_TRANSITION_DURATION` | `0.4` | Crossfade duration between scenes (seconds) |
 | `BG_MUSIC_VOLUME` | `0.08` | Background music volume (0.0 = off). Place an MP3 at the path set by `BG_MUSIC_PATH` to enable. |
 | `BG_MUSIC_PATH` | `"assets/bg_music.mp3"` | Path to the background music MP3 file (relative to the repo root). |
-| `TTS_LANGUAGE` | `"en"` | gTTS language code (`en`, `es`, `fr`, `de`, `hi`, etc.) |
+| `TTS_VOICE` | `"en-US-AndrewNeural"` | Microsoft Edge neural voice for TTS |
+| `TTS_LANGUAGE` | `"en"` | Fallback gTTS language code (`en`, `es`, `fr`, `de`, `hi`, etc.) |
 | `YOUTUBE_CATEGORY_ID` | `"22"` | YouTube category (22 = People & Blogs) |
 | `PRIVACY_STATUS` | `"public"` | Upload privacy (`public`, `unlisted`, `private`) |
 | `MAX_VIDEOS_PER_RUN` | `1` | Videos per pipeline run |

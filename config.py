@@ -21,22 +21,26 @@ BG_MUSIC_VOLUME: float = 0.08
 BG_MUSIC_PATH: str = "assets/bg_music.mp3"  # Relative path to background music file (leave empty to disable)
 
 # Subtitle / caption styling
-SUBTITLE_FONT_SIZE: int = 70
+SUBTITLE_FONT_SIZE: int = 80
 SUBTITLE_FONT: str = "Liberation-Sans-Bold"
-SUBTITLE_STROKE_WIDTH: int = 3
-SUBTITLE_BG_OPACITY: float = 0.65
-SUBTITLE_HIGHLIGHT_COLOR: str = "#FFD700"
-SUBTITLE_POSITION: float = 0.65
-SUBTITLE_MAX_WORDS: int = 6
+SUBTITLE_STROKE_WIDTH: int = 5
+SUBTITLE_BG_OPACITY: float = 0.75
+SUBTITLE_HIGHLIGHT_COLOR: str = "#00E5FF"
+SUBTITLE_SECONDARY_COLOR: str = "#FFD700"
+SUBTITLE_POSITION: float = 0.70
+SUBTITLE_MAX_WORDS: int = 4
+SUBTITLE_BG_CORNER_RADIUS: int = 20
+SUBTITLE_SHADOW_OFFSET: int = 4
 
 # Video encoding quality
-VIDEO_PRESET: str = "medium"
-VIDEO_BITRATE: str = "8000k"
-AUDIO_BITRATE: str = "192k"
+VIDEO_PRESET: str = "slow"
+VIDEO_BITRATE: str = "12000k"
+AUDIO_BITRATE: str = "256k"
+VIDEO_TRANSITION_DURATION: float = 0.4
 
 # TTS settings (edge-tts — free neural voice, no API key needed)
-TTS_VOICE: str = "en-US-GuyNeural"
-TTS_RATE: str = "+10%"
+TTS_VOICE: str = "en-US-AndrewNeural"
+TTS_RATE: str = "+5%"
 TTS_LANGUAGE: str = "en"  # Fallback for gTTS
 
 # Upload settings

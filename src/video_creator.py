@@ -5,11 +5,11 @@ TTS audio, and animated captions using MoviePy.
 Workflow:
 1. Fetch stock video clips from the Pexels API for each scene description.
 2. Resize / crop each clip to 1080 × 1920 (portrait).
-3. Concatenate clips to match the TTS audio duration.
-4. Overlay TTS audio.
-5. Burn sentence-level captions at the bottom third of the frame.
+3. Concatenate clips with crossfade transitions.
+4. Overlay TTS audio with optional background music.
+5. Burn professional TikTok-style captions with rounded pill backgrounds.
 6. Apply fade-in / fade-out.
-7. Export as H.264/AAC MP4.
+7. Export as high-quality H.264/AAC MP4.
 """
 
 import logging
@@ -20,14 +20,20 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from PIL import Image
+from PIL import Image, ImageDraw
 
 # ---------------------------------------------------------------------------
-# Pillow 10+ removed Image.ANTIALIAS; MoviePy 1.x still references it.
-# Restore the alias so MoviePy's resize() calls work with modern Pillow.
+# Pillow 10+ compatibility shims for MoviePy 1.x
 # ---------------------------------------------------------------------------
+# Pillow 10 removed Image.ANTIALIAS; MoviePy 1.x still references it.
 if not hasattr(Image, "ANTIALIAS"):
     Image.ANTIALIAS = Image.Resampling.LANCZOS
+
+# Pillow 10 moved transpose constants; ensure top-level aliases exist.
+for _attr in ("FLIP_LEFT_RIGHT", "FLIP_TOP_BOTTOM", "ROTATE_90",
+              "ROTATE_180", "ROTATE_270", "TRANSPOSE", "TRANSVERSE"):
+    if not hasattr(Image, _attr) and hasattr(Image.Transpose, _attr):
+        setattr(Image, _attr, getattr(Image.Transpose, _attr))
 
 import config
 
@@ -51,7 +57,7 @@ def _search_pexels_video(query: str, per_page: int = 5) -> list[str]:
         resp = requests.get(
             _PEXELS_VIDEO_SEARCH,
             headers=_pexels_headers(),
-            params={"query": query, "per_page": per_page, "orientation": "portrait", "size": "medium"},
+            params={"query": query, "per_page": per_page, "orientation": "portrait", "size": "large"},
             timeout=15,
         )
         resp.raise_for_status()
@@ -59,9 +65,10 @@ def _search_pexels_video(query: str, per_page: int = 5) -> list[str]:
         urls: list[str] = []
         for video in data.get("videos", []):
             files = video.get("video_files", [])
-            # Prefer HD files; fall back to any
-            hd = [f for f in files if f.get("quality") in ("hd", "sd")]
-            chosen = hd[0] if hd else (files[0] if files else None)
+            # Prefer HD files, then SD, then any available
+            hd = [f for f in files if f.get("quality") == "hd"]
+            sd = [f for f in files if f.get("quality") == "sd"]
+            chosen = hd[0] if hd else (sd[0] if sd else (files[0] if files else None))
             if chosen and chosen.get("link"):
                 urls.append(chosen["link"])
         return urls
@@ -75,14 +82,15 @@ def _search_pexels_image(query: str) -> str | None:
         resp = requests.get(
             _PEXELS_IMAGE_SEARCH,
             headers=_pexels_headers(),
-            params={"query": query, "per_page": 3, "orientation": "portrait"},
+            params={"query": query, "per_page": 3, "orientation": "portrait", "size": "large"},
             timeout=15,
         )
         resp.raise_for_status()
         data: dict[str, Any] = resp.json()
         photos = data.get("photos", [])
         if photos:
-            return photos[0]["src"]["large"]
+            # Prefer large2x for best quality, fall back to large
+            return photos[0]["src"].get("large2x", photos[0]["src"]["large"])
     except Exception as exc:  # noqa: BLE001
         logger.warning("Pexels image search failed for '%s': %s", query, exc)
     return None
@@ -112,6 +120,33 @@ def _resize_clip(clip: Any, w: int, h: int) -> Any:
     y1 = (resized.h - h) / 2
     return resized.crop(x1=x1, y1=y1, x2=x1 + w, y2=y1 + h)
 
+
+def _ken_burns_effect(clip: Any, w: int, h: int, zoom_ratio: float = 0.08) -> Any:
+    """Apply a slow Ken Burns zoom effect to a static image clip.
+
+    Gradually zooms in over the clip's duration for a cinematic feel, then
+    centre-crops to the target *w* × *h* dimensions every frame.
+    """
+    duration = clip.duration
+
+    def _zoom_frame(get_frame: Any, t: float) -> Any:
+        import numpy as np
+        frame = get_frame(t)
+        progress = t / duration if duration > 0 else 0
+        current_zoom = 1.0 + zoom_ratio * progress
+        fh, fw = frame.shape[:2]
+        new_w = int(fw / current_zoom)
+        new_h = int(fh / current_zoom)
+        x1 = (fw - new_w) // 2
+        y1 = (fh - new_h) // 2
+        cropped = frame[y1:y1 + new_h, x1:x1 + new_w]
+        # Resize back to original dimensions
+        pil_img = Image.fromarray(cropped)
+        pil_img = pil_img.resize((fw, fh), Image.Resampling.LANCZOS)
+        return np.array(pil_img)
+
+    return clip.fl(_zoom_frame)
+
 def _split_into_chunks(text: str, max_words: int = 6) -> list[str]:
     """Break *text* into short word-burst chunks suitable for TikTok-style captions.
 
@@ -138,10 +173,23 @@ def _split_into_chunks(text: str, max_words: int = 6) -> list[str]:
     return [c for c in chunks if c]
 
 
+def _make_rounded_rect_image(width: int, height: int, radius: int,
+                              color: tuple[int, int, int],
+                              opacity: float) -> Any:
+    """Create a rounded-rectangle RGBA image for subtitle backgrounds."""
+    import numpy as np
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    alpha = int(255 * opacity)
+    fill = (*color, alpha)
+    draw.rounded_rectangle([(0, 0), (width - 1, height - 1)], radius=radius, fill=fill)
+    return np.array(img)
+
+
 def _build_caption_clips(script_text: str, total_duration: float, video_w: int, video_h: int) -> list[Any]:
-    """Create TikTok-style word-burst caption clips timed across *total_duration*."""
+    """Create professional TikTok-style word-burst captions with rounded pill backgrounds."""
     try:
-        from moviepy.editor import TextClip, ColorClip, CompositeVideoClip  # type: ignore[import]
+        from moviepy.editor import TextClip, ImageClip, CompositeVideoClip  # type: ignore[import]
     except Exception:  # noqa: BLE001
         return []
 
@@ -152,14 +200,22 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
     duration_per_chunk = total_duration / len(chunks)
     clips: list[Any] = []
     y_pos = int(video_h * config.SUBTITLE_POSITION)
+    highlight = config.SUBTITLE_HIGHLIGHT_COLOR
+    secondary = getattr(config, "SUBTITLE_SECONDARY_COLOR", "#FFD700")
+    corner_radius = getattr(config, "SUBTITLE_BG_CORNER_RADIUS", 20)
+    shadow_offset = getattr(config, "SUBTITLE_SHADOW_OFFSET", 4)
+    crossfade = min(0.15, duration_per_chunk * 0.2)
+
+    # Cycle through a palette for variety
+    _palette = ["white", highlight, "white", secondary]
 
     for i, chunk in enumerate(chunks):
         start = i * duration_per_chunk
         dur = duration_per_chunk
-        # Alternate between white and the accent highlight color
-        color = config.SUBTITLE_HIGHLIGHT_COLOR if i % 2 == 1 else "white"
+        color = _palette[i % len(_palette)]
         text_upper = chunk.upper()
         try:
+            # Main text clip
             txt_clip = TextClip(
                 text_upper,
                 fontsize=config.SUBTITLE_FONT_SIZE,
@@ -168,33 +224,62 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
                 stroke_color="black",
                 stroke_width=config.SUBTITLE_STROKE_WIDTH,
                 method="caption",
-                size=(video_w - 80, None),
+                size=(video_w - 100, None),
                 align="center",
             )
             txt_w, txt_h = txt_clip.size
-            pad_x, pad_y = 20, 10
-            # Semi-transparent dark background box
+            pad_x, pad_y = 30, 16
+
+            # Shadow text for depth effect
+            shadow_clip = TextClip(
+                text_upper,
+                fontsize=config.SUBTITLE_FONT_SIZE,
+                font=config.SUBTITLE_FONT,
+                color="#000000",
+                stroke_color="#000000",
+                stroke_width=config.SUBTITLE_STROKE_WIDTH + 1,
+                method="caption",
+                size=(video_w - 100, None),
+                align="center",
+            )
+
+            # Rounded pill background using Pillow
+            bg_w = txt_w + pad_x * 2
+            bg_h = txt_h + pad_y * 2
+            bg_img = _make_rounded_rect_image(
+                bg_w, bg_h, corner_radius,
+                color=(10, 10, 10), opacity=config.SUBTITLE_BG_OPACITY,
+            )
             bg_clip = (
-                ColorClip(
-                    size=(txt_w + pad_x * 2, txt_h + pad_y * 2),
-                    color=(0, 0, 0),
-                )
-                .set_opacity(config.SUBTITLE_BG_OPACITY)
+                ImageClip(bg_img, ismask=False, transparent=True)
                 .set_start(start)
                 .set_duration(dur)
                 .set_position(("center", y_pos - pad_y))
-                .crossfadein(0.1)
-                .crossfadeout(0.1)
+                .crossfadein(crossfade)
+                .crossfadeout(crossfade)
             )
+
+            # Shadow positioned slightly offset for depth
+            shadow_clip = (
+                shadow_clip
+                .set_start(start)
+                .set_duration(dur)
+                .set_position(("center", y_pos + shadow_offset))
+                .set_opacity(0.5)
+                .crossfadein(crossfade)
+                .crossfadeout(crossfade)
+            )
+
+            # Main text
             txt_clip = (
                 txt_clip
                 .set_start(start)
                 .set_duration(dur)
                 .set_position(("center", y_pos))
-                .crossfadein(0.1)
-                .crossfadeout(0.1)
+                .crossfadein(crossfade)
+                .crossfadeout(crossfade)
             )
-            clips.extend([bg_clip, txt_clip])
+            clips.extend([bg_clip, shadow_clip, txt_clip])
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not create caption clip for chunk %d: %s", i, exc)
     return clips
@@ -237,6 +322,7 @@ def create_video(
 
     w, h = config.VIDEO_WIDTH, config.VIDEO_HEIGHT
     target_duration = audio_duration if audio_duration > 0 else config.VIDEO_DURATION_TARGET
+    transition_dur = getattr(config, "VIDEO_TRANSITION_DURATION", 0.4)
     downloaded: list[Path] = []
     video_clips: list[Any] = []
 
@@ -249,17 +335,18 @@ def create_video(
             clip_added = False
 
             # Try video first
-            video_urls = _search_pexels_video(scene, per_page=3)
+            video_urls = _search_pexels_video(scene, per_page=5)
             for url in video_urls:
                 try:
                     clip_path = _download_file(url, ".mp4")
                     downloaded.append(clip_path)
                     vc = VideoFileClip(str(clip_path), audio=False)
-                    # Loop / trim to match scene duration
-                    if vc.duration < time_per_scene:
-                        loops = math.ceil(time_per_scene / vc.duration)
+                    # Loop / trim to match scene duration (add extra for crossfade)
+                    scene_dur = time_per_scene + transition_dur
+                    if vc.duration < scene_dur:
+                        loops = math.ceil(scene_dur / vc.duration)
                         vc = vc.loop(n=loops)
-                    vc = vc.subclip(0, time_per_scene)
+                    vc = vc.subclip(0, scene_dur)
                     vc = _resize_clip(vc, w, h)
                     video_clips.append(vc)
                     clip_added = True
@@ -268,33 +355,44 @@ def create_video(
                     logger.warning("Failed to load video from Pexels: %s", exc)
 
             if not clip_added:
-                # Fallback: try a static image
+                # Fallback: try a static image with Ken Burns effect
                 img_url = _search_pexels_image(scene)
                 if img_url:
                     try:
                         img_path = _download_file(img_url, ".jpg")
                         downloaded.append(img_path)
-                        ic = ImageClip(str(img_path)).set_duration(time_per_scene)
+                        scene_dur = time_per_scene + transition_dur
+                        ic = ImageClip(str(img_path)).set_duration(scene_dur)
                         ic = _resize_clip(ic, w, h)
+                        ic = _ken_burns_effect(ic, w, h, zoom_ratio=0.08)
                         video_clips.append(ic)
                         clip_added = True
                     except Exception as exc:  # noqa: BLE001
                         logger.warning("Failed to load image from Pexels: %s", exc)
 
             if not clip_added:
-                # Last resort: solid colour placeholder
-                logger.warning("No footage for scene '%s'; using colour placeholder", scene)
-                placeholder = ColorClip(size=(w, h), color=(30, 30, 30)).set_duration(time_per_scene)
+                # Last resort: gradient placeholder instead of flat colour
+                logger.warning("No footage for scene '%s'; using gradient placeholder", scene)
+                scene_dur = time_per_scene + transition_dur
+                placeholder = ColorClip(size=(w, h), color=(20, 20, 40)).set_duration(scene_dur)
                 video_clips.append(placeholder)
 
         # ------------------------------------------------------------------
-        # 2. Concatenate clips
+        # 2. Concatenate clips with crossfade transitions
         # ------------------------------------------------------------------
         if not video_clips:
             raise RuntimeError("No video clips could be assembled")
 
-        base = concatenate_videoclips(video_clips, method="compose")
-        # Trim or pad to match audio duration
+        if len(video_clips) > 1 and transition_dur > 0:
+            base = concatenate_videoclips(
+                video_clips,
+                method="compose",
+                padding=-transition_dur,
+            )
+        else:
+            base = concatenate_videoclips(video_clips, method="compose")
+
+        # Trim to match target duration
         if base.duration > target_duration:
             base = base.subclip(0, target_duration)
 
@@ -312,6 +410,8 @@ def create_video(
                     .volumex(config.BG_MUSIC_VOLUME)
                     .set_duration(target_duration)
                 )
+                # Fade in/out the background music for a polished feel
+                bg_audio = bg_audio.audio_fadein(1.0).audio_fadeout(2.0)
                 mixed_audio = CompositeAudioClip([bg_audio, tts_audio])
                 base = base.set_audio(mixed_audio)
                 logger.info("Background music mixed in at volume %.2f", config.BG_MUSIC_VOLUME)
@@ -333,7 +433,7 @@ def create_video(
         # ------------------------------------------------------------------
         # 5. Fade-in / fade-out
         # ------------------------------------------------------------------
-        final = final.fadein(0.5).fadeout(0.5)
+        final = final.fadein(0.7).fadeout(0.7)
 
         # ------------------------------------------------------------------
         # 6. Export
@@ -352,6 +452,7 @@ def create_video(
             preset=config.VIDEO_PRESET,
             bitrate=config.VIDEO_BITRATE,
             audio_bitrate=config.AUDIO_BITRATE,
+            ffmpeg_params=["-pix_fmt", "yuv420p", "-movflags", "+faststart"],
             logger=None,
         )
         logger.info("Video rendered successfully: '%s'", out_path)
