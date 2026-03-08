@@ -20,6 +20,14 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from PIL import Image
+
+# ---------------------------------------------------------------------------
+# Pillow 10+ removed Image.ANTIALIAS; MoviePy 1.x still references it.
+# Restore the alias so MoviePy's resize() calls work with modern Pillow.
+# ---------------------------------------------------------------------------
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 import config
 
@@ -32,12 +40,10 @@ _PEXELS_IMAGE_SEARCH = "https://api.pexels.com/v1/search"
 # ---------------------------------------------------------------------------
 # Pexels helpers
 # ---------------------------------------------------------------------------
-
 def _pexels_headers() -> dict[str, str]:
     if not config.PEXELS_API_KEY:
         raise RuntimeError("PEXELS_API_KEY environment variable is not set")
     return {"Authorization": config.PEXELS_API_KEY}
-
 
 def _search_pexels_video(query: str, per_page: int = 5) -> list[str]:
     """Return a list of downloadable video URLs from Pexels for *query*."""
@@ -63,7 +69,6 @@ def _search_pexels_video(query: str, per_page: int = 5) -> list[str]:
         logger.warning("Pexels video search failed for '%s': %s", query, exc)
         return []
 
-
 def _search_pexels_image(query: str) -> str | None:
     """Return the URL of a landscape/portrait photo from Pexels for *query*."""
     try:
@@ -82,7 +87,6 @@ def _search_pexels_image(query: str) -> str | None:
         logger.warning("Pexels image search failed for '%s': %s", query, exc)
     return None
 
-
 def _download_file(url: str, suffix: str) -> Path:
     """Stream-download *url* to a named temp file and return its path."""
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
@@ -95,11 +99,9 @@ def _download_file(url: str, suffix: str) -> Path:
                 fh.write(chunk)
     return tmp_path
 
-
 # ---------------------------------------------------------------------------
 # MoviePy helpers
 # ---------------------------------------------------------------------------
-
 def _resize_clip(clip: Any, w: int, h: int) -> Any:
     """Resize and centre-crop *clip* to exactly *w* × *h* pixels."""
     clip_w, clip_h = clip.size
@@ -109,7 +111,6 @@ def _resize_clip(clip: Any, w: int, h: int) -> Any:
     x1 = (resized.w - w) / 2
     y1 = (resized.h - h) / 2
     return resized.crop(x1=x1, y1=y1, x2=x1 + w, y2=y1 + h)
-
 
 def _build_caption_clips(script_text: str, total_duration: float, video_w: int, video_h: int) -> list[Any]:
     """Create sentence-level caption TextClips timed across *total_duration*."""
@@ -148,11 +149,9 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
             logger.warning("Could not create caption clip for sentence %d: %s", i, exc)
     return clips
 
-
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
-
 def create_video(
     audio_path: Path,
     script_text: str,
