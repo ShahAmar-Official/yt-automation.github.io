@@ -1288,9 +1288,12 @@ PEXELS_API_KEY         → Your free Pexels API key</pre>
     }
 
     // ── Token Exchange ────────────────────────────────────────────
+    const TOKEN_URI = 'https://oauth2.googleapis.com/token';
+
     async function exchangeToken() {
       const authCode = state.authCode || document.getElementById('auth-code-display').textContent.trim();
-      const clientId = document.getElementById('client-id').value.trim() || (loadSavedState() && loadSavedState().clientId);
+      const saved = loadSavedState();
+      const clientId = document.getElementById('client-id').value.trim() || saved.clientId;
       const clientSecret = document.getElementById('client-secret').value.trim();
       const redirectUri = window.location.origin + window.location.pathname;
 
@@ -1326,7 +1329,7 @@ PEXELS_API_KEY         → Your free Pexels API key</pre>
           grant_type: 'authorization_code'
         });
 
-        const resp = await fetch('https://oauth2.googleapis.com/token', {
+        const resp = await fetch(TOKEN_URI, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: body.toString()
@@ -1337,15 +1340,22 @@ PEXELS_API_KEY         → Your free Pexels API key</pre>
         if (!resp.ok) {
           const errMsg = data.error_description || data.error || 'Unknown error';
           statusText.style.color = 'var(--red)';
-          statusText.textContent = '❌ Exchange failed: ' + errMsg;
+          statusText.textContent = '❌ Exchange failed (' + resp.status + '): ' + errMsg;
           showToast('❌ Token exchange failed. Check your credentials.');
+          return;
+        }
+
+        if (!data.access_token || !data.refresh_token) {
+          statusText.style.color = 'var(--red)';
+          statusText.textContent = '❌ Response missing access_token or refresh_token. Ensure access_type=offline and prompt=consent were used.';
+          showToast('❌ Incomplete token response. Try re-authorizing in Step 2.');
           return;
         }
 
         const tokenJson = JSON.stringify({
           access_token: data.access_token,
           refresh_token: data.refresh_token,
-          token_uri: 'https://oauth2.googleapis.com/token'
+          token_uri: TOKEN_URI
         }, null, 2);
 
         document.getElementById('token-result-display').textContent = tokenJson;
