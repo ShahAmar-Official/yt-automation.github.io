@@ -1,5 +1,5 @@
 """
-trending.py — Fetch trending topics from Google Trends, Reddit, and NewsAPI.
+trending.py — Fetch trending topics from Google Trends, Hacker News, and NewsAPI.
 
 Returns a deduplicated list of trending topic strings and picks the
 best topic using a simple cross-source scoring heuristic.
@@ -41,7 +41,7 @@ def _fetch_google_trends(retries: int = 3, backoff: float = 2.0) -> list[str]:
     """Fetch daily trending searches for the US from Google Trends.
 
     Uses pytrends if available, otherwise falls back to an empty list so the
-    rest of the pipeline can continue with Reddit results.
+    rest of the pipeline can continue with Hacker News results.
     """
     try:
         from pytrends.request import TrendReq  # type: ignore[import]
@@ -63,75 +63,27 @@ def _fetch_google_trends(retries: int = 3, backoff: float = 2.0) -> list[str]:
     return []
 
 
-def _fetch_reddit_trending(retries: int = 3, backoff: float = 2.0) -> list[str]:
-    """Fetch top post titles from Reddit's r/popular feed.
+def _fetch_hackernews_trending(retries: int = 3, backoff: float = 2.0) -> list[str]:
+    """Fetch top story titles from Hacker News via the Algolia API.
 
-    Uses the Reddit OAuth2 client-credentials flow when ``REDDIT_CLIENT_ID``
-    and ``REDDIT_CLIENT_SECRET`` are set in the environment.  Falls back to
-    the unauthenticated JSON endpoint otherwise (which may be blocked by
-    Reddit's anti-bot measures on CI).
+    Completely free — no API key or authentication required.  The Algolia
+    search API for Hacker News returns current front-page stories in a
+    single request.
     """
-    # ------------------------------------------------------------------
-    # Authenticated path (OAuth2 client credentials — preferred in CI)
-    # ------------------------------------------------------------------
-    if config.REDDIT_CLIENT_ID and config.REDDIT_CLIENT_SECRET:
-        token_url = "https://www.reddit.com/api/v1/access_token"
-        user_agent = "yt-automation-bot/1.0 (by /u/automation_bot)"
-        for attempt in range(1, retries + 1):
-            try:
-                token_resp = requests.post(
-                    token_url,
-                    auth=(config.REDDIT_CLIENT_ID, config.REDDIT_CLIENT_SECRET),
-                    data={"grant_type": "client_credentials"},
-                    headers={"User-Agent": user_agent},
-                    timeout=15,
-                )
-                token_resp.raise_for_status()
-                access_token = token_resp.json().get("access_token", "")
-                if not access_token:
-                    raise ValueError("Empty access token returned")
-
-                api_resp = requests.get(
-                    "https://oauth.reddit.com/r/popular.json?limit=25",
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "User-Agent": user_agent,
-                    },
-                    timeout=15,
-                )
-                api_resp.raise_for_status()
-                data: dict[str, Any] = api_resp.json()
-                posts = data.get("data", {}).get("children", [])
-                topics = [
-                    post["data"]["title"]
-                    for post in posts
-                    if post.get("data", {}).get("title")
-                ]
-                logger.info("Reddit (OAuth) returned %d topics", len(topics))
-                return topics[:20]
-            except Exception as exc:  # noqa: BLE001
-                logger.warning("Reddit OAuth attempt %d/%d failed: %s", attempt, retries, exc)
-                if attempt < retries:
-                    time.sleep(backoff * attempt)
-        return []
-
-    # ------------------------------------------------------------------
-    # Unauthenticated fallback (may be blocked from datacenter IPs)
-    # ------------------------------------------------------------------
-    url = "https://www.reddit.com/r/popular.json?limit=25"
-    headers = {"User-Agent": "yt-automation-bot/1.0 (by /u/automation_bot)"}
+    url = "https://hn.algolia.com/api/v1/search"
+    params = {"tags": "front_page", "hitsPerPage": 25}
 
     for attempt in range(1, retries + 1):
         try:
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-            posts = data.get("data", {}).get("children", [])
-            topics = [post["data"]["title"] for post in posts if post.get("data", {}).get("title")]
-            logger.info("Reddit (unauthenticated) returned %d topics", len(topics))
+            resp = requests.get(url, params=params, timeout=15)
+            resp.raise_for_status()
+            data: dict[str, Any] = resp.json()
+            hits = data.get("hits", [])
+            topics = [hit["title"] for hit in hits if hit.get("title")]
+            logger.info("Hacker News returned %d topics", len(topics))
             return topics[:20]
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Reddit attempt %d/%d failed: %s", attempt, retries, exc)
+            logger.warning("Hacker News attempt %d/%d failed: %s", attempt, retries, exc)
             if attempt < retries:
                 time.sleep(backoff * attempt)
     return []
@@ -175,18 +127,18 @@ def _fetch_newsapi_trending(retries: int = 3, backoff: float = 2.0) -> list[str]
 
 
 def get_trending_topics() -> list[str]:
-    """Combine Google Trends, Reddit, and NewsAPI results into a deduplicated list.
+    """Combine Google Trends, Hacker News, and NewsAPI results into a deduplicated list.
 
     Returns at least 10 topic strings, falling back to :data:`FALLBACK_TOPICS`
     if the external sources cannot provide enough results.
     """
     google_topics = _fetch_google_trends()
-    reddit_topics = _fetch_reddit_trending()
+    hn_topics = _fetch_hackernews_trending()
     newsapi_topics = _fetch_newsapi_trending()
 
     seen: set[str] = set()
     combined: list[str] = []
-    for topic in google_topics + reddit_topics + newsapi_topics:
+    for topic in google_topics + hn_topics + newsapi_topics:
         normalised = topic.strip()
         if normalised and normalised.lower() not in seen:
             seen.add(normalised.lower())
@@ -213,7 +165,7 @@ def get_best_topic() -> str:
     (higher rank) get more points.
     """
     google_topics = _fetch_google_trends()
-    reddit_topics = _fetch_reddit_trending()
+    hn_topics = _fetch_hackernews_trending()
     newsapi_topics = _fetch_newsapi_trending()
 
     scores: dict[str, float] = {}
@@ -222,11 +174,11 @@ def get_best_topic() -> str:
         key = topic.strip().lower()
         scores[key] = scores.get(key, 0) + (len(google_topics) - rank)
 
-    for rank, topic in enumerate(reddit_topics):
+    for rank, topic in enumerate(hn_topics):
         key = topic.strip().lower()
         # Double the score if it already appeared in Google Trends (cross-source bonus)
         bonus = 2.0 if key in scores else 1.0
-        scores[key] = scores.get(key, 0) + bonus * (len(reddit_topics) - rank)
+        scores[key] = scores.get(key, 0) + bonus * (len(hn_topics) - rank)
 
     for rank, topic in enumerate(newsapi_topics):
         key = topic.strip().lower()
@@ -236,7 +188,7 @@ def get_best_topic() -> str:
 
     # Rebuild mapping from lower-case key → original casing
     original: dict[str, str] = {}
-    for topic in google_topics + reddit_topics + newsapi_topics:
+    for topic in google_topics + hn_topics + newsapi_topics:
         key = topic.strip().lower()
         if key not in original:
             original[key] = topic.strip()
@@ -251,14 +203,14 @@ def get_best_topic() -> str:
 
     # Pad the combined topic list with fallbacks so get_trending_topics() stays
     # consistent without making a second round of network calls.
-    seen: set[str] = {t.strip().lower() for t in google_topics + reddit_topics + newsapi_topics}
+    seen: set[str] = {t.strip().lower() for t in google_topics + hn_topics + newsapi_topics}
     combined = list(original.values())
     for fallback in FALLBACK_TOPICS:
         if fallback.lower() not in seen:
             seen.add(fallback.lower())
             combined.append(fallback)
         if len(combined) >= _MIN_TOPICS:
-                break
+            break
     logger.info("Total unique topics available: %d", len(combined))
 
     return best_topic

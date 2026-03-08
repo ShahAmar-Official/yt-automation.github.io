@@ -12,7 +12,7 @@ runs 24/7 via **GitHub Actions** — no server required, **100% free**.
 
 Every 6 hours the pipeline:
 
-1. 🔍 **Finds trending topics** from Google Trends and Reddit
+1. 🔍 **Finds trending topics** from Google Trends and Hacker News
 2. ✍️ **Writes a professional script** using smart templates with hooks, narration, and CTAs
 3. 🎙️ **Converts the script to speech** using Google TTS (gTTS — free)
 4. 🎬 **Creates a vertical 1080 × 1920 video** with Pexels stock footage and animated captions
@@ -29,7 +29,7 @@ GitHub Actions (cron: every 6 h)
         ▼
 src/pipeline.py  ──────────────────────────────────────────────┐
         │                                                       │
-        ├─► src/trending.py      (Google Trends + Reddit)      │
+        ├─► src/trending.py      (Google Trends + Hacker News) │
         │         │ trending topic                              │
         ├─► src/scriptwriter.py  (Template engine — free)      │
         │         │ title, script, scenes, tags, description    │
@@ -110,7 +110,7 @@ manually via **Actions → YouTube Shorts Automation → Run workflow**.
 
 | Step | Module | Description |
 |------|--------|-------------|
-| 1 | `src/trending.py` | Fetches daily trending searches from Google Trends (US) and top posts from Reddit r/popular. Scores topics by cross-source appearance. |
+| 1 | `src/trending.py` | Fetches daily trending searches from Google Trends (US) and top stories from Hacker News. Scores topics by cross-source appearance. |
 | 2 | `src/scriptwriter.py` | Generates engaging scripts using a template engine with hooks, body variations, CTAs, scene descriptions, tags, and descriptions. Fully deterministic — no API key needed. |
 | 3 | `src/tts.py` | Converts the narration to an MP3 file using Google's free gTTS library and measures audio duration. |
 | 4 | `src/video_creator.py` | Queries Pexels for portrait video clips per scene, assembles them with MoviePy, adds captions, overlays audio, and exports to MP4. |
@@ -144,7 +144,7 @@ Edit `config.py` to change:
 | gTTS | Voice narration | **Free** |
 | Pexels API | Stock footage | **Free** |
 | Google Trends | Trending topics | **Free** |
-| Reddit | Trending topics | **Free** |
+| Hacker News | Trending topics | **Free** |
 | GitHub Actions | ~10 min / run | **Free** (2,000 min/month included) |
 | **Total** | | **$0.00 / video** |
 
