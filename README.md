@@ -66,7 +66,8 @@ python - <<'EOF'
 from google_auth_oauthlib.flow import InstalledAppFlow
 flow = InstalledAppFlow.from_client_secrets_file(
     "client_secret.json",
-    scopes=["https://www.googleapis.com/auth/youtube.upload"]
+    scopes=["https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.force-ssl"]
 )
 creds = flow.run_local_server(port=0)
 import json
@@ -112,7 +113,7 @@ manually via **Actions → YouTube Shorts Automation → Run workflow**.
 |------|--------|-------------|
 | 1 | `src/trending.py` | Fetches daily trending searches from Google Trends (US) and top stories from Hacker News. Scores topics by cross-source appearance. |
 | 2 | `src/scriptwriter.py` | Generates engaging scripts using a template engine with hooks, body variations, CTAs, scene descriptions, tags, and descriptions. Fully deterministic — no API key needed. |
-| 3 | `src/tts.py` | Converts the narration to an MP3 file using Google's free gTTS library and measures audio duration. |
+| 3 | `src/tts.py` | Converts the narration to an MP3 file using Microsoft Edge's free neural TTS (female voice) and measures audio duration. |
 | 4 | `src/video_creator.py` | Queries Pexels for portrait video clips per scene, assembles them with MoviePy, adds captions, overlays audio, and exports to MP4. |
 | 5 | `src/thumbnail.py` | Creates a gradient 1280 × 720 JPEG thumbnail with the video title and a topic emoji using Pillow. |
 | 6 | `src/uploader.py` | Uploads the video via the YouTube Data API v3 resumable upload endpoint, then attaches the thumbnail. |
@@ -135,7 +136,7 @@ Edit `config.py` to change:
 | `VIDEO_TRANSITION_DURATION` | `0.4` | Crossfade duration between scenes (seconds) |
 | `BG_MUSIC_VOLUME` | `0.08` | Background music volume (0.0 = off). Place an MP3 at the path set by `BG_MUSIC_PATH` to enable. |
 | `BG_MUSIC_PATH` | `"assets/bg_music.mp3"` | Path to the background music MP3 file (relative to the repo root). |
-| `TTS_VOICE` | `"en-US-AndrewNeural"` | Microsoft Edge neural voice for TTS |
+| `TTS_VOICE` | `"en-US-JennyNeural"` | Microsoft Edge neural voice for TTS (female) |
 | `TTS_LANGUAGE` | `"en"` | Fallback gTTS language code (`en`, `es`, `fr`, `de`, `hi`, etc.) |
 | `YOUTUBE_CATEGORY_ID` | `"22"` | YouTube category (22 = People & Blogs) |
 | `PRIVACY_STATUS` | `"public"` | Upload privacy (`public`, `unlisted`, `private`) |
