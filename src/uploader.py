@@ -60,7 +60,10 @@ def _build_credentials() -> "google.oauth2.credentials.Credentials":  # type: ig
         client_id=client_id,
         client_secret=client_secret,
         token_uri=token_uri,
-        scopes=["https://www.googleapis.com/auth/youtube.upload"],
+        scopes=[
+            "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.force-ssl",
+        ],
     )
 
     # Refresh if expired
@@ -154,12 +157,46 @@ def upload_video(
 
 
 def _set_thumbnail(youtube: object, video_id: str, thumbnail_path: Path) -> None:
-    """Attach *thumbnail_path* to the already-uploaded *video_id*."""
+    """Attach *thumbnail_path* to the already-uploaded *video_id*.
+
+    Retries up to 3 times with increasing delays because YouTube may still
+    be processing the video immediately after upload.
+    """
     try:
         from googleapiclient.http import MediaFileUpload  # type: ignore[import]
+        from googleapiclient.errors import HttpError  # type: ignore[import]
+    except ImportError:
+        logger.warning("google-api-python-client not available; skipping thumbnail")
+        return
 
-        media = MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg")
-        youtube.thumbnails().set(videoId=video_id, media_body=media).execute()  # type: ignore[union-attr]
-        logger.info("Thumbnail set for video %s", video_id)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Failed to set thumbnail for video %s: %s", video_id, exc)
+    media = MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg")
+
+    for attempt in range(1, 4):
+        try:
+            # Wait before setting thumbnail — the video may still be processing
+            delay = 5 * attempt
+            logger.info("Waiting %d s before setting thumbnail (attempt %d/3)…", delay, attempt)
+            time.sleep(delay)
+
+            youtube.thumbnails().set(  # type: ignore[union-attr]
+                videoId=video_id, media_body=media
+            ).execute()
+            logger.info("Thumbnail set for video %s", video_id)
+            return
+        except HttpError as exc:
+            status = exc.resp.status if hasattr(exc, "resp") else "unknown"
+            logger.warning(
+                "Thumbnail attempt %d/3 failed (HTTP %s): %s. "
+                "If 403, ensure the channel has custom thumbnails enabled "
+                "(requires phone verification) and the OAuth token includes "
+                "the youtube.force-ssl scope.",
+                attempt, status, exc,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Thumbnail attempt %d/3 failed: %s", attempt, exc)
+
+    logger.warning(
+        "Failed to set thumbnail for video %s after 3 attempts. "
+        "The video was uploaded successfully — thumbnail can be set manually.",
+        video_id,
+    )

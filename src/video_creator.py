@@ -186,8 +186,17 @@ def _make_rounded_rect_image(width: int, height: int, radius: int,
     return np.array(img)
 
 
-def _build_caption_clips(script_text: str, total_duration: float, video_w: int, video_h: int) -> list[Any]:
-    """Create professional TikTok-style word-burst captions with rounded pill backgrounds."""
+def _build_caption_clips(script_text: str, total_duration: float, video_w: int, video_h: int,
+                         start_offset: float = 0.0) -> list[Any]:
+    """Create professional TikTok-style word-burst captions with rounded pill backgrounds.
+
+    Args:
+        script_text: Caption text to display (typically body+CTA, excluding hook).
+        total_duration: Total video duration in seconds.
+        video_w: Video width in pixels.
+        video_h: Video height in pixels.
+        start_offset: Seconds to delay captions from the start (e.g. hook duration).
+    """
     try:
         from moviepy.editor import TextClip, ImageClip, CompositeVideoClip  # type: ignore[import]
     except Exception:  # noqa: BLE001
@@ -197,7 +206,11 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
     if not chunks:
         return []
 
-    duration_per_chunk = total_duration / len(chunks)
+    available_duration = total_duration - start_offset
+    if available_duration <= 0:
+        available_duration = total_duration
+        start_offset = 0.0
+    duration_per_chunk = available_duration / len(chunks)
     clips: list[Any] = []
     y_pos = int(video_h * config.SUBTITLE_POSITION)
     highlight = config.SUBTITLE_HIGHLIGHT_COLOR
@@ -210,7 +223,7 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
     color_palette = ["white", highlight, "white", secondary]
 
     for i, chunk in enumerate(chunks):
-        start = i * duration_per_chunk
+        start = start_offset + i * duration_per_chunk
         dur = duration_per_chunk
         color = color_palette[i % len(color_palette)]
         text_upper = chunk.upper()
@@ -292,14 +305,18 @@ def create_video(
     script_text: str,
     scenes: list[str],
     audio_duration: float,
+    hook_text: str = "",
 ) -> Path:
     """Create a vertical 1080 × 1920 YouTube Shorts MP4 video.
 
     Args:
         audio_path: Path to the TTS MP3 audio file.
-        script_text: Full narration text (used for captions).
+        script_text: Caption text (body+CTA, excluding hook) used for captions.
         scenes: List of scene description strings (used for Pexels queries).
         audio_duration: Duration in seconds of the TTS audio.
+        hook_text: The hook text spoken at the start of the audio but excluded
+            from captions.  Used to calculate caption start offset so
+            subtitles stay synchronised with the spoken words.
 
     Returns:
         Path to the exported MP4 file.
@@ -422,9 +439,17 @@ def create_video(
             base = base.set_audio(tts_audio)
 
         # ------------------------------------------------------------------
-        # 4. Captions
+        # 4. Captions — offset by estimated hook duration so subtitles
+        #    align with the spoken body text instead of the hook.
         # ------------------------------------------------------------------
-        caption_clips = _build_caption_clips(script_text, target_duration, w, h)
+        hook_offset = 0.0
+        if hook_text:
+            full_word_count = len(hook_text.split()) + len(script_text.split())
+            hook_word_count = len(hook_text.split())
+            if full_word_count > 0:
+                hook_offset = target_duration * (hook_word_count / full_word_count)
+        caption_clips = _build_caption_clips(script_text, target_duration, w, h,
+                                             start_offset=hook_offset)
         if caption_clips:
             final = CompositeVideoClip([base] + caption_clips, size=(w, h))
         else:

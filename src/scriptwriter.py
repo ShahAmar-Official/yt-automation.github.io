@@ -26,6 +26,7 @@ class ScriptData(TypedDict):
     title: str
     script: str
     caption_script: str
+    hook: str
     scenes: list[str]
     tags: list[str]
     description: str
@@ -35,16 +36,16 @@ class ScriptData(TypedDict):
 # Hook templates — the critical first line that grabs attention
 # ---------------------------------------------------------------------------
 _HOOKS: list[str] = [
-    "You won't believe what's happening with {topic} right now!",
-    "Stop scrolling — {topic} is about to blow your mind!",
-    "Here's something about {topic} that nobody is talking about!",
-    "If you haven't heard about {topic} yet, listen up!",
-    "This is the craziest thing about {topic} you'll see today!",
-    "{topic} just changed the game — here's how!",
-    "Everyone is freaking out about {topic} — here's why!",
-    "The truth about {topic} will shock you!",
-    "Wait until you hear this about {topic}!",
-    "Three things you need to know about {topic} right now!",
+    "Breaking developments in {topic} are reshaping the landscape as we speak.",
+    "Industry leaders are calling {topic} the most significant shift of the decade.",
+    "Here is what the latest data reveals about {topic} — and why it matters to you.",
+    "A critical update on {topic} that every informed person needs to hear right now.",
+    "The conversation around {topic} just reached a tipping point — let me explain.",
+    "{topic} is making headlines worldwide, and the implications are far-reaching.",
+    "Experts have weighed in on {topic}, and their findings are truly compelling.",
+    "If {topic} is not on your radar yet, this sixty-second briefing will change that.",
+    "New analysis on {topic} has surfaced, and the results are impossible to ignore.",
+    "Three pivotal insights about {topic} that will change how you see it entirely.",
 ]
 
 # ---------------------------------------------------------------------------
@@ -52,39 +53,44 @@ _HOOKS: list[str] = [
 # ---------------------------------------------------------------------------
 _BODIES: list[str] = [
     (
-        "So here's the deal. {topic} has been making waves everywhere lately. "
-        "Experts are calling this one of the biggest developments we've seen in a long time. "
-        "What makes this so interesting is how it affects everyday people like you and me. "
-        "The impact is already being felt across multiple industries and communities. "
-        "People on social media can't stop talking about it, and for good reason."
+        "Here is what is driving the momentum. {topic} has emerged as a defining "
+        "force across multiple sectors. Leading analysts confirm that the scale of "
+        "this development has few precedents in recent history. What makes it "
+        "particularly noteworthy is the direct impact on consumers, businesses, "
+        "and policymakers alike. The data points to a sustained trajectory that "
+        "could redefine industry standards for years to come."
     ),
     (
-        "Let me break it down for you. {topic} is trending because it's genuinely "
-        "important. This isn't just hype — there are real changes happening right now. "
-        "Whether you're a fan or a skeptic, you can't ignore the facts. "
-        "The numbers speak for themselves, and the momentum is only growing. "
-        "This could reshape how we think about things moving forward."
+        "Let me put this in perspective. {topic} has moved beyond early speculation "
+        "into verified, measurable territory. Independent research now validates "
+        "what insiders have been signaling for months. The convergence of market "
+        "demand, technological advancement, and public interest has created a "
+        "perfect storm of relevance. Whether you are a professional or an observer, "
+        "the strategic implications here are substantial."
     ),
     (
-        "Here's what you need to know. {topic} has taken the world by storm. "
-        "From viral moments to heated debates, everyone has an opinion. "
-        "But behind all the noise, there are some incredible takeaways. "
-        "The real story is about innovation, resilience, and what comes next. "
-        "And trust me, what comes next is going to be absolutely wild."
+        "Here is the full picture. {topic} has captured global attention for "
+        "a reason that goes deeper than surface-level hype. Behind the headlines "
+        "lies a fundamental shift in how stakeholders approach this space. "
+        "Innovation, accountability, and scale are the three pillars driving "
+        "this forward. The trajectory suggests that early adopters and informed "
+        "audiences will benefit the most from understanding these dynamics now."
     ),
     (
-        "Pay attention because this matters. {topic} is more than just a trend. "
-        "It represents a shift in how we approach everyday challenges. "
-        "The community around this has exploded, and new developments "
-        "are happening at lightning speed. What started as a small movement "
-        "has become something truly remarkable."
+        "Consider the broader context. {topic} represents more than a single "
+        "event — it signals a structural transformation. The professional "
+        "community has responded with unprecedented engagement, and fresh data "
+        "continues to reinforce the significance of this movement. What began "
+        "as a niche discussion has evolved into a mainstream priority with "
+        "real-world consequences that are already taking shape."
     ),
     (
-        "Let's talk about why {topic} is everywhere right now. "
-        "It started gaining traction a little while ago, but now it's unstoppable. "
-        "The key takeaway is that this affects more people than you might think. "
-        "Creators, professionals, and everyday folks are all paying attention. "
-        "And the best part? This is just the beginning."
+        "Let me walk you through the key factors. {topic} is gaining traction "
+        "because it addresses a genuine need in the current landscape. Credible "
+        "sources across industries have validated its importance, and the "
+        "momentum shows no sign of slowing. For those paying close attention, "
+        "the opportunities and implications here are both timely and actionable. "
+        "This is a development worth following closely."
     ),
 ]
 
@@ -92,11 +98,11 @@ _BODIES: list[str] = [
 # Call-to-action templates — closing that drives engagement
 # ---------------------------------------------------------------------------
 _CTAS: list[str] = [
-    "If you found this helpful, smash that like button and subscribe for more! Drop a comment telling me what you think about {topic}!",
-    "Like this video if you learned something new! Subscribe so you never miss an update, and tell me your thoughts in the comments!",
-    "Hit subscribe and turn on notifications so you catch the next one! What do you think about {topic}? Let me know below!",
-    "Don't forget to like, subscribe, and share this with someone who needs to know about {topic}! See you in the next one!",
-    "Follow for more content like this! Double tap if you agree, and comment your take on {topic}!",
+    "If this was valuable, tap like and subscribe for daily insights. Share your perspective on {topic} in the comments below.",
+    "Hit subscribe so you never miss a briefing like this. What is your take on {topic}? Drop your thoughts in the comments.",
+    "Like this breakdown and turn on notifications to stay ahead of the curve. Tell me how {topic} is affecting your world.",
+    "Subscribe for concise, well-researched updates delivered daily. Let me know your experience with {topic} in the comments.",
+    "If you found this insightful, share it with someone who needs to know. Follow for more expert-level analysis on trending topics.",
 ]
 
 # ---------------------------------------------------------------------------
@@ -137,37 +143,37 @@ _SCENE_SETS: list[list[str]] = [
 # Title templates
 # ---------------------------------------------------------------------------
 _TITLE_TEMPLATES: list[str] = [
-    "{Topic} — What Nobody Tells You! 🤯",
-    "The Truth About {Topic} 🔥",
-    "{Topic} Is INSANE Right Now! 😱",
-    "Why {Topic} Changes Everything! 💡",
-    "{Topic} — You Need To See This! 👀",
-    "This Is Why {Topic} Is Trending! 📈",
-    "{Topic} Explained In 60 Seconds ⚡",
-    "The {Topic} Secret Everyone Missed! 🤫",
+    "{Topic} — What the Experts Are Saying 🔍",
+    "The Real Story Behind {Topic} 📊",
+    "{Topic} Is Redefining the Industry Right Now 🚀",
+    "Why {Topic} Matters More Than Ever 💡",
+    "{Topic} — A Must-Watch Briefing 📌",
+    "The Latest on {Topic} — Key Takeaways 📈",
+    "{Topic} Explained in 60 Seconds ⚡",
+    "Inside {Topic} — What You Need to Know 🎯",
 ]
 
 # ---------------------------------------------------------------------------
 # Description template
 # ---------------------------------------------------------------------------
-_DESCRIPTION_TEMPLATE = """🔥 {title}
+_DESCRIPTION_TEMPLATE = """🔍 {title}
 
-{topic} is making headlines and we're breaking it all down for you in under 60 seconds!
+Stay informed: {topic} is making waves and we break it down in under 60 seconds.
 
-In this short, you'll discover:
+In this briefing, you will learn:
 ✅ Why {topic} is trending right now
-✅ The key facts you need to know
-✅ What this means for you
+✅ The key facts and data points you need to know
+✅ What this means for you and what to watch next
 
-📱 Follow for daily shorts on trending topics!
+📱 Subscribe for daily expert-level briefings on trending topics.
 
-👍 Like this video if you found it helpful
-💬 Comment your thoughts below
-🔔 Subscribe and turn on notifications
+👍 Like this video if you found it valuable
+💬 Share your perspective in the comments
+🔔 Turn on notifications so you never miss an update
 
 {hashtags}
 
-#Shorts #Trending #Viral #MustWatch #Facts #News #Today"""
+#Shorts #Trending #Analysis #Insights #Briefing #News #Today"""
 
 
 # ---------------------------------------------------------------------------
@@ -275,6 +281,7 @@ def generate_script(topic: str) -> ScriptData:
         title=title,
         script=script_text,
         caption_script=caption_text,
+        hook=hook,
         scenes=scenes,
         tags=tags,
         description=description,
