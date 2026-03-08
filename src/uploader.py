@@ -169,34 +169,36 @@ def _set_thumbnail(youtube: object, video_id: str, thumbnail_path: Path) -> None
         logger.warning("google-api-python-client not available; skipping thumbnail")
         return
 
-    media = MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg")
+    _THUMBNAIL_RETRY_DELAYS = [5, 10, 15]  # seconds to wait before each attempt
 
-    for attempt in range(1, 4):
+    for attempt, delay in enumerate(_THUMBNAIL_RETRY_DELAYS, start=1):
         try:
             # Wait before setting thumbnail — the video may still be processing
-            delay = 5 * attempt
-            logger.info("Waiting %d s before setting thumbnail (attempt %d/3)…", delay, attempt)
+            logger.info("Waiting %d s before setting thumbnail (attempt %d/%d)…",
+                        delay, attempt, len(_THUMBNAIL_RETRY_DELAYS))
             time.sleep(delay)
 
+            fresh_media = MediaFileUpload(str(thumbnail_path), mimetype="image/jpeg")
             youtube.thumbnails().set(  # type: ignore[union-attr]
-                videoId=video_id, media_body=media
+                videoId=video_id, media_body=fresh_media
             ).execute()
             logger.info("Thumbnail set for video %s", video_id)
             return
         except HttpError as exc:
             status = exc.resp.status if hasattr(exc, "resp") else "unknown"
             logger.warning(
-                "Thumbnail attempt %d/3 failed (HTTP %s): %s. "
+                "Thumbnail attempt %d/%d failed (HTTP %s): %s. "
                 "If 403, ensure the channel has custom thumbnails enabled "
                 "(requires phone verification) and the OAuth token includes "
                 "the youtube.force-ssl scope.",
-                attempt, status, exc,
+                attempt, len(_THUMBNAIL_RETRY_DELAYS), status, exc,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Thumbnail attempt %d/3 failed: %s", attempt, exc)
+            logger.warning("Thumbnail attempt %d/%d failed: %s",
+                           attempt, len(_THUMBNAIL_RETRY_DELAYS), exc)
 
     logger.warning(
-        "Failed to set thumbnail for video %s after 3 attempts. "
+        "Failed to set thumbnail for video %s after %d attempts. "
         "The video was uploaded successfully — thumbnail can be set manually.",
-        video_id,
+        video_id, len(_THUMBNAIL_RETRY_DELAYS),
     )
