@@ -1,15 +1,15 @@
 """
 thumbnail.py — Generate eye-catching 1280 × 720 JPEG thumbnails using Pillow.
 
-Creates a gradient background with large bold title text, and a
-topic-relevant emoji / icon as a visual accent.
+Creates a professional gradient background with large bold title text,
+rounded accent elements, and a topic-relevant emoji as a visual accent.
 """
 
 import logging
 import tempfile
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +18,11 @@ THUMB_W = 1280
 THUMB_H = 720
 
 # Colour palette
-_BG_COLOR_TOP = (20, 20, 60)       # deep navy
-_BG_COLOR_BOTTOM = (180, 10, 10)   # deep red
-_ACCENT_COLOR = (255, 215, 0)      # gold / yellow
-_TEXT_COLOR = (255, 255, 255)      # white
+_BG_COLOR_TOP = (10, 10, 45)        # deep dark navy
+_BG_COLOR_BOTTOM = (140, 20, 60)    # rich crimson
+_ACCENT_COLOR = (255, 215, 0)       # gold / yellow
+_TEXT_COLOR = (255, 255, 255)        # white
+_STROKE_COLOR = (0, 0, 0)           # black for outline
 
 
 def _make_gradient(w: int, h: int, top: tuple[int, int, int], bottom: tuple[int, int, int]) -> Image.Image:
@@ -51,7 +52,10 @@ def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         except (IOError, OSError):
             pass
     logger.warning("No TrueType font found; using default bitmap font")
-    return ImageFont.load_default()
+    try:
+        return ImageFont.load_default(size=size)
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def _wrap_text(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, max_width: int) -> list[str]:
@@ -74,6 +78,24 @@ def _wrap_text(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, ma
     if current:
         lines.append(current)
     return lines
+
+
+def _draw_text_with_stroke(draw: ImageDraw.ImageDraw, xy: tuple[int, int], text: str,
+                            font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+                            fill: tuple[int, ...], stroke_fill: tuple[int, ...],
+                            stroke_width: int) -> None:
+    """Draw text with a thick outline/stroke for readability."""
+    try:
+        draw.text(xy, text, font=font, fill=fill,
+                  stroke_width=stroke_width, stroke_fill=stroke_fill)
+    except TypeError:
+        # Fallback for older Pillow without stroke support
+        x, y = xy
+        for dx in range(-stroke_width, stroke_width + 1):
+            for dy in range(-stroke_width, stroke_width + 1):
+                if dx * dx + dy * dy <= stroke_width * stroke_width:
+                    draw.text((x + dx, y + dy), text, font=font, fill=stroke_fill)
+        draw.text(xy, text, font=font, fill=fill)
 
 
 def _topic_emoji(topic: str) -> str:
@@ -110,40 +132,65 @@ def create_thumbnail(title: str, topic: str) -> Path:
     img = _make_gradient(THUMB_W, THUMB_H, _BG_COLOR_TOP, _BG_COLOR_BOTTOM)
     draw = ImageDraw.Draw(img)
 
-    # Accent bar at the bottom
-    draw.rectangle([(0, THUMB_H - 80), (THUMB_W, THUMB_H)], fill=_ACCENT_COLOR)
+    # Decorative accent bar at the bottom with rounded corners
+    bar_y = THUMB_H - 90
+    draw.rounded_rectangle(
+        [(30, bar_y), (THUMB_W - 30, THUMB_H - 20)],
+        radius=20,
+        fill=_ACCENT_COLOR,
+    )
+
+    # Subtle glow behind text area for depth
+    glow = Image.new("RGB", (THUMB_W, THUMB_H), (0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+    glow_draw.ellipse(
+        [(THUMB_W // 2 - 400, 60), (THUMB_W // 2 + 400, THUMB_H - 120)],
+        fill=(25, 25, 25),
+    )
+    glow = glow.filter(ImageFilter.GaussianBlur(radius=60))
+    img = Image.blend(img, glow, alpha=0.3)
+    draw = ImageDraw.Draw(img)
 
     # Emoji (large, top-left region)
     emoji = _topic_emoji(topic)
     emoji_font = _load_font(140)
     try:
-        draw.text((60, 40), emoji, font=emoji_font, fill=_ACCENT_COLOR)
+        draw.text((60, 30), emoji, font=emoji_font, fill=_ACCENT_COLOR)
     except Exception:  # noqa: BLE001
-        # Some default fonts can't render emoji; silently skip
         pass
 
-    # Title text
-    title_font = _load_font(90)
-    max_text_w = THUMB_W - 120
+    # Title text with stroke for readability
+    title_font = _load_font(95)
+    max_text_w = THUMB_W - 140
     lines = _wrap_text(title.upper(), title_font, max_text_w)
-    line_height = 105
+    line_height = 115
     total_text_h = len(lines) * line_height
-    start_y = (THUMB_H - total_text_h) // 2
+    start_y = max(180, (THUMB_H - total_text_h) // 2 - 20)
 
     for i, line in enumerate(lines):
         y = start_y + i * line_height
-        # Drop shadow
-        draw.text((62, y + 4), line, font=title_font, fill=(0, 0, 0))
-        draw.text((60, y), line, font=title_font, fill=_TEXT_COLOR)
+        _draw_text_with_stroke(
+            draw, (70, y), line,
+            font=title_font,
+            fill=_TEXT_COLOR,
+            stroke_fill=_STROKE_COLOR,
+            stroke_width=4,
+        )
 
     # Channel watermark on accent bar
-    watermark_font = _load_font(40)
-    draw.text((60, THUMB_H - 62), "▶ Subscribe for more", font=watermark_font, fill=(20, 20, 60))
+    watermark_font = _load_font(38)
+    _draw_text_with_stroke(
+        draw, (70, bar_y + 18), "▶ SUBSCRIBE FOR MORE",
+        font=watermark_font,
+        fill=(10, 10, 45),
+        stroke_fill=(10, 10, 45),
+        stroke_width=0,
+    )
 
     # Save
     tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
     thumb_path = Path(tmp.name)
     tmp.close()
-    img.save(thumb_path, "JPEG", quality=92)
+    img.save(thumb_path, "JPEG", quality=95, subsampling=0)
     logger.info("Thumbnail saved to '%s'", thumb_path)
     return thumb_path
