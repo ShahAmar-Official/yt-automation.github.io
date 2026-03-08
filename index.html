@@ -1044,7 +1044,8 @@ python - &lt;&lt;'EOF'
 from google_auth_oauthlib.flow import InstalledAppFlow
 flow = InstalledAppFlow.from_client_secrets_file(
     "client_secret.json",
-    scopes=["https://www.googleapis.com/auth/youtube.upload"]
+    scopes=["https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.force-ssl"]
 )
 creds = flow.run_local_server(port=0)
 import json
@@ -1251,7 +1252,7 @@ PEXELS_API_KEY         → Your free Pexels API key</pre>
       saveState({ clientId: clientId });
 
       const redirectUri = window.location.origin + window.location.pathname;
-      const scope = 'https://www.googleapis.com/auth/youtube.upload';
+      const scope = 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.force-ssl';
 
       const params = new URLSearchParams({
         client_id: clientId,
