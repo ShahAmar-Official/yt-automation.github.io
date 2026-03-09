@@ -275,13 +275,23 @@ def _set_thumbnail(youtube: object, video_id: str, thumbnail_path: Path) -> None
             logger.info("Thumbnail set for video %s", video_id)
             return
         except HttpError as exc:
-            status = exc.resp.status if hasattr(exc, "resp") else "unknown"
+            http_status = exc.resp.status if hasattr(exc, "resp") else "unknown"
+            # 403 "forbidden" means the channel lacks custom-thumbnail
+            # permission (requires phone verification).  Retrying will never
+            # succeed, so bail out immediately to avoid wasting CI time.
+            if http_status == 403:
+                logger.warning(
+                    "Thumbnail upload permanently blocked (HTTP 403): %s. "
+                    "Ensure the channel has custom thumbnails enabled "
+                    "(requires phone verification) and the OAuth token includes "
+                    "the youtube.force-ssl scope.  "
+                    "The video was uploaded successfully — set the thumbnail manually.",
+                    exc,
+                )
+                return
             logger.warning(
-                "Thumbnail attempt %d/%d failed (HTTP %s): %s. "
-                "If 403, ensure the channel has custom thumbnails enabled "
-                "(requires phone verification) and the OAuth token includes "
-                "the youtube.force-ssl scope.",
-                attempt, len(_THUMBNAIL_RETRY_DELAYS), status, exc,
+                "Thumbnail attempt %d/%d failed (HTTP %s): %s",
+                attempt, len(_THUMBNAIL_RETRY_DELAYS), http_status, exc,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Thumbnail attempt %d/%d failed: %s",
