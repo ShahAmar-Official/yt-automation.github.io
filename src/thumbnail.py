@@ -169,9 +169,15 @@ def create_thumbnail(title: str, topic: str) -> Path:
     if not emoji_rendered:
         # Render a short text badge when the emoji glyph is unavailable
         badge_font = _load_font(52)
-        draw.rounded_rectangle([(50, 30), (50 + len(emoji_label) * 34 + 20, 100)],
-                                radius=14, fill=_ACCENT_COLOR)
-        draw.text((60, 36), emoji_label, font=badge_font, fill=(10, 10, 45))
+        _BADGE_X, _BADGE_Y, _BADGE_H, _BADGE_PADDING, _BADGE_RADIUS = 50, 30, 100, 20, 14
+        bbox = draw.textbbox((0, 0), emoji_label, font=badge_font)
+        text_w = bbox[2] - bbox[0]
+        draw.rounded_rectangle(
+            [(_BADGE_X, _BADGE_Y), (_BADGE_X + text_w + _BADGE_PADDING, _BADGE_H)],
+            radius=_BADGE_RADIUS, fill=_ACCENT_COLOR,
+        )
+        draw.text((_BADGE_X + _BADGE_PADDING // 2, _BADGE_Y + 6), emoji_label,
+                  font=badge_font, fill=(10, 10, 45))
 
     # Title text with stroke for readability
     title_font = _load_font(95)
