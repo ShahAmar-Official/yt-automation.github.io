@@ -154,21 +154,51 @@ def _normalize_audio(audio_path: Path) -> None:
         logger.warning("Audio normalization skipped: %s", exc)
 
 
-async def _generate_edge_tts(text: str, output_path: str, voice: str, rate: str) -> None:
+async def _generate_edge_tts(
+    text: str, output_path: str, voice: str, rate: str
+) -> list[dict]:
     """Async helper that calls edge-tts to synthesise *text* and save to *output_path*.
 
     Passes plain text to edge-tts (SSML is **not** used because edge-tts v7+
     internally escapes all XML tags, which causes the TTS engine to read the
     markup aloud instead of interpreting it).  The neural voice already
     handles sentence boundaries and comma pauses naturally from punctuation.
+
+    Uses ``communicate.stream()`` to capture ``WordBoundary`` events which
+    provide exact word-level timestamps directly from the TTS engine.
+
+    Returns:
+        A list of ``{"word": str, "start": float, "end": float}`` dicts
+        (times in seconds) derived from the ``WordBoundary`` events.
     """
     import edge_tts  # type: ignore[import]
 
     communicate = edge_tts.Communicate(text, voice, rate=rate)
-    await communicate.save(output_path)
+    word_timestamps: list[dict] = []
+
+    with open(output_path, "wb") as audio_file:
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_file.write(chunk["data"])
+            elif chunk["type"] == "WordBoundary":
+                # offset and duration are in 100-nanosecond ticks
+                offset = chunk.get("offset", 0)
+                duration = chunk.get("duration", 0)
+                word = chunk.get("text", "")
+                if not word:
+                    continue
+                start_s = offset / 10_000_000
+                dur_s = duration / 10_000_000
+                word_timestamps.append({
+                    "word": word,
+                    "start": start_s,
+                    "end": start_s + dur_s,
+                })
+
+    return word_timestamps
 
 
-def generate_speech(script_text: str) -> tuple[Path, float]:
+def generate_speech(script_text: str) -> tuple[Path, float, list[dict]]:
     """Generate TTS audio for *script_text*.
 
     Tries Microsoft Edge's free neural TTS (edge-tts) first for natural,
@@ -179,8 +209,11 @@ def generate_speech(script_text: str) -> tuple[Path, float]:
         script_text: The narration text to convert to speech.
 
     Returns:
-        A tuple of ``(audio_path, duration_seconds)`` where *audio_path* is a
-        :class:`pathlib.Path` pointing to the generated MP3 file.
+        A tuple of ``(audio_path, duration_seconds, word_timestamps)`` where
+        *audio_path* is a :class:`pathlib.Path` pointing to the generated MP3
+        file and *word_timestamps* is a list of
+        ``{"word": str, "start": float, "end": float}`` dicts (times in
+        seconds).  For the gTTS fallback, *word_timestamps* is an empty list.
 
     Raises:
         RuntimeError: If all TTS engines fail.
@@ -196,12 +229,14 @@ def generate_speech(script_text: str) -> tuple[Path, float]:
     clean_text = _clean_text_for_tts(script_text)
     logger.debug("Cleaned TTS text (%d chars): %s…", len(clean_text), clean_text[:80])
 
+    word_timestamps: list[dict] = []
+
     # --- Primary: edge-tts (free Microsoft neural voice) ---
     try:
         import edge_tts  # type: ignore[import]  # noqa: F401 — check availability before asyncio.run
 
         voice = pick_voice()
-        asyncio.run(
+        word_timestamps = asyncio.run(
             _generate_edge_tts(
                 clean_text,
                 str(audio_path),
@@ -209,7 +244,8 @@ def generate_speech(script_text: str) -> tuple[Path, float]:
                 config.TTS_RATE,
             )
         )
-        logger.info("TTS generated via edge-tts (voice: %s)", voice)
+        logger.info("TTS generated via edge-tts (voice: %s, %d word timestamps)",
+                    voice, len(word_timestamps))
     except Exception as edge_exc:  # noqa: BLE001
         logger.warning("edge-tts failed (%s); falling back to gTTS", edge_exc)
 
@@ -243,4 +279,4 @@ def generate_speech(script_text: str) -> tuple[Path, float]:
 
     duration = _get_audio_duration(audio_path)
     logger.info("TTS audio saved to '%s' (%.2f s)", audio_path, duration)
-    return audio_path, duration
+    return audio_path, duration, word_timestamps

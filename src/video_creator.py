@@ -314,7 +314,8 @@ def _make_vignette_clip(w: int, h: int, duration: float) -> Any:
 
 
 def _build_caption_clips(script_text: str, total_duration: float, video_w: int, video_h: int,
-                         start_offset: float = 0.0) -> list[Any]:
+                         start_offset: float = 0.0,
+                         word_timestamps: list[dict] | None = None) -> list[Any]:
     """Create modern neon-style TikTok word-burst captions.
 
     Features:
@@ -325,55 +326,70 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
     - Bold uppercase text with thick stroke for contrast on any background.
     - Soft crossfade between bursts for a polished feel.
 
+    When *word_timestamps* is provided (from edge-tts WordBoundary events),
+    the exact timing from the TTS engine is used for perfect sync.  When it
+    is absent or empty, timing falls back to word-proportional distribution.
+
     Args:
-        script_text:    Caption text to display (full script or body+CTA).
-        total_duration: Total video duration in seconds.
-        video_w:        Video width in pixels.
-        video_h:        Video height in pixels.
-        start_offset:   Seconds to delay captions from video start.
+        script_text:      Caption text to display (full script or body+CTA).
+        total_duration:   Total video duration in seconds.
+        video_w:          Video width in pixels.
+        video_h:          Video height in pixels.
+        start_offset:     Seconds to delay captions from video start (fallback
+                          path only; ignored when word_timestamps are available).
+        word_timestamps:  Optional list of ``{"word", "start", "end"}`` dicts
+                          from the TTS engine.
     """
     try:
         from moviepy.editor import TextClip, ImageClip  # type: ignore[import]
     except Exception:  # noqa: BLE001
         return []
 
-    chunks = _split_into_chunks(
-        _clean_text_for_display(script_text), max_words=config.SUBTITLE_MAX_WORDS
-    )
-    if not chunks:
-        return []
+    # ------------------------------------------------------------------
+    # Build (chunk_text, start_s, end_s) triples
+    # ------------------------------------------------------------------
+    chunk_tuples: list[tuple[str, float, float]] = []
 
-    # Shift all captions slightly later so they trail the spoken audio
-    # instead of appearing ahead of it.  The end buffer shrinks the
-    # caption window so the last burst finishes before the speech does.
-    subtitle_delay = getattr(config, "SUBTITLE_DELAY", 0.25)
-    end_buffer = getattr(config, "SUBTITLE_END_BUFFER", 0.4)
-    start_offset += subtitle_delay
+    if word_timestamps:
+        # Real timestamps from edge-tts — group into SUBTITLE_MAX_WORDS chunks
+        max_words = config.SUBTITLE_MAX_WORDS
+        for i in range(0, len(word_timestamps), max_words):
+            group = word_timestamps[i : i + max_words]
+            if not group:
+                continue
+            text = " ".join(w.get("word", "") for w in group).strip()
+            if not text:
+                continue
+            start_s = group[0].get("start", 0.0)
+            end_s = group[-1].get("end", start_s + 0.1)
+            chunk_tuples.append((text, start_s, end_s))
+    else:
+        # Fallback: proportional-duration distribution (gTTS path)
+        chunks = _split_into_chunks(
+            _clean_text_for_display(script_text), max_words=config.SUBTITLE_MAX_WORDS
+        )
+        if not chunks:
+            return []
 
-    available_duration = total_duration - start_offset - end_buffer
-    # Graceful fallback for very short videos: first drop the end buffer,
-    # then drop the caller's start_offset (keep the subtitle delay so
-    # captions still trail the speech slightly).
-    if available_duration <= 0:
         available_duration = total_duration - start_offset
         if available_duration <= 0:
             available_duration = total_duration
-            start_offset = subtitle_delay
+            start_offset = 0.0
 
-    # Word-proportional durations — longer chunks stay on screen longer
-    if getattr(config, "SUBTITLE_WORD_TIMING", True) and len(chunks) > 1:
-        word_counts = [max(1, len(c.split())) for c in chunks]
-        total_words = sum(word_counts)
-        chunk_durations = [available_duration * wc / total_words for wc in word_counts]
-    else:
-        chunk_durations = [available_duration / len(chunks)] * len(chunks)
+        if getattr(config, "SUBTITLE_WORD_TIMING", True) and len(chunks) > 1:
+            word_counts = [max(1, len(c.split())) for c in chunks]
+            total_words = sum(word_counts)
+            chunk_durations = [available_duration * wc / total_words for wc in word_counts]
+        else:
+            chunk_durations = [available_duration / len(chunks)] * len(chunks)
 
-    # Cumulative start times
-    chunk_starts: list[float] = []
-    t = start_offset
-    for dur in chunk_durations:
-        chunk_starts.append(t)
-        t += dur
+        t = start_offset
+        for chunk, dur in zip(chunks, chunk_durations):
+            chunk_tuples.append((chunk, t, t + dur))
+            t += dur
+
+    if not chunk_tuples:
+        return []
 
     clips: list[Any] = []
 
@@ -398,9 +414,8 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
 
     glow_rgb = _hex_to_rgb(glow_color_hex)
 
-    for i, chunk in enumerate(chunks):
-        start = chunk_starts[i]
-        dur   = chunk_durations[i]
+    for i, (chunk, start, end) in enumerate(chunk_tuples):
+        dur = max(end - start, 0.05)
         crossfade = min(0.12, dur * 0.18)
         color = color_palette[i % len(color_palette)]
         display_text = chunk.upper() if all_caps else chunk
@@ -510,19 +525,22 @@ def create_video(
     scenes: list[str],
     audio_duration: float,
     hook_text: str = "",
+    word_timestamps: list[dict] | None = None,
 ) -> Path:
     """Create a vertical 1080 × 1920 YouTube Shorts MP4 video.
 
     Args:
-        audio_path:     Path to the TTS MP3 audio file.
-        script_text:    Full narration script (hook + body + CTA).  Every
-                        spoken word is captioned in a single lower-third
-                        band — no duplicate top subtitle.
-        scenes:         List of scene description strings (used as Pexels
-                        search queries).
-        audio_duration: Duration in seconds of the TTS audio.
-        hook_text:      Kept for API compatibility; no longer used
-                        internally now that the full script is captioned.
+        audio_path:       Path to the TTS MP3 audio file.
+        script_text:      Full narration script (hook + body + CTA).  Every
+                          spoken word is captioned in a single lower-third
+                          band — no duplicate top subtitle.
+        scenes:           List of scene description strings (used as Pexels
+                          search queries).
+        audio_duration:   Duration in seconds of the TTS audio.
+        hook_text:        Kept for API compatibility; no longer used
+                          internally now that the full script is captioned.
+        word_timestamps:  Optional list of ``{"word", "start", "end"}`` dicts
+                          from the TTS engine for perfect caption sync.
 
     Returns:
         Path to the exported MP4 file.
@@ -661,7 +679,8 @@ def create_video(
         #    hook) are captioned in one consistent zone.  No top subtitle.
         # ------------------------------------------------------------------
         caption_clips = _build_caption_clips(
-            script_text, audio_duration, w, h, start_offset=0.0
+            script_text, audio_duration, w, h, start_offset=0.0,
+            word_timestamps=word_timestamps,
         )
 
         # ------------------------------------------------------------------
