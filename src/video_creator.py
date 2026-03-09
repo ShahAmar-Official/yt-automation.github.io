@@ -343,10 +343,19 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
     if not chunks:
         return []
 
-    available_duration = total_duration - start_offset
+    # Shift all captions slightly later so they trail the spoken audio
+    # instead of appearing ahead of it.  The end buffer shrinks the
+    # caption window so the last burst finishes before the speech does.
+    subtitle_delay = getattr(config, "SUBTITLE_DELAY", 0.25)
+    end_buffer = getattr(config, "SUBTITLE_END_BUFFER", 0.4)
+    start_offset += subtitle_delay
+
+    available_duration = total_duration - start_offset - end_buffer
+    if available_duration <= 0:
+        available_duration = total_duration - start_offset
     if available_duration <= 0:
         available_duration = total_duration
-        start_offset = 0.0
+        start_offset = subtitle_delay
 
     # Word-proportional durations — longer chunks stay on screen longer
     if getattr(config, "SUBTITLE_WORD_TIMING", True) and len(chunks) > 1:
