@@ -54,6 +54,15 @@ def run_pipeline() -> None:
 
     try:
         # ------------------------------------------------------------------
+        # Step 0: Validate YouTube credentials (fail fast before heavy work)
+        # ------------------------------------------------------------------
+        logger.info("[0/6] Validating YouTube credentials…")
+        from src.uploader import validate_credentials  # noqa: PLC0415
+
+        validate_credentials()
+        logger.info("      Credentials OK")
+
+        # ------------------------------------------------------------------
         # Step 1: Find best trending topic
         # ------------------------------------------------------------------
         logger.info("[1/6] Fetching trending topics…")

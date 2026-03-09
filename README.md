@@ -180,6 +180,68 @@ and the [Code of Conduct](CODE_OF_CONDUCT.md) before submitting a pull request.
 
 ---
 
+## 🛠️ Troubleshooting
+
+### `invalid_scope: Bad Request` / `401 Unauthorized` on upload
+
+**Cause**: The `YOUTUBE_TOKEN` secret is outdated, was issued without the required OAuth scopes, or the refresh token has been revoked.
+
+**Fix**: Regenerate the token by running the OAuth2 flow locally with the correct scopes:
+
+```bash
+pip install google-auth-oauthlib
+python - <<'EOF'
+from google_auth_oauthlib.flow import InstalledAppFlow
+import json
+
+flow = InstalledAppFlow.from_client_secrets_file(
+    "client_secret.json",
+    scopes=[
+        "https://www.googleapis.com/auth/youtube.upload",
+        "https://www.googleapis.com/auth/youtube.force-ssl",
+    ]
+)
+creds = flow.run_local_server(port=0)
+token_json = json.dumps({
+    "access_token": creds.token,
+    "refresh_token": creds.refresh_token,
+    "token_uri": creds.token_uri,
+})
+print(token_json)
+EOF
+```
+
+Then update the `YOUTUBE_TOKEN` GitHub Secret with the printed JSON.
+
+> **The `youtube.force-ssl` scope is required** for thumbnail uploads and certain API features.  Tokens generated without it will result in `invalid_scope` errors.
+
+---
+
+### `file_cache is only supported with oauth2client<4.0.0` warning
+
+Informational only — not an error. The pipeline suppresses the discovery cache to avoid this. No action needed.
+
+---
+
+### `Thumbnail failed (HTTP 403)`
+
+Enable **custom thumbnails** on your YouTube channel:
+1. Go to [YouTube Studio → Settings → Channel → Feature eligibility](https://studio.youtube.com/)
+2. Custom thumbnails require phone number verification on the account.
+
+---
+
+### Required GitHub Secrets
+
+| Secret | Format | Required? |
+|--------|--------|-----------|
+| `YOUTUBE_CLIENT_SECRET` | Full OAuth2 client secret JSON (from Google Cloud Console) | ✅ Yes |
+| `YOUTUBE_TOKEN` | JSON with `access_token`, `refresh_token`, `token_uri` | ✅ Yes |
+| `PEXELS_API_KEY` | Plain API key string | ✅ Yes (for stock footage) |
+| `NEWSAPI_KEY` | Plain API key string | ⬜ Optional (adds news headlines as topic source) |
+
+---
+
 ## ⚠️ Disclaimer
 
 This tool is intended for educational and creative purposes. Ensure your use

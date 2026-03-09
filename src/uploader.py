@@ -93,22 +93,64 @@ def _build_credentials() -> "google.oauth2.credentials.Credentials":  # type: ig
     # start the upload with a valid access token and avoids relying on
     # google-auth-httplib2's automatic 401-retry (which would also trigger
     # the scope issue described above if scopes were present).
-    if creds.refresh_token:
-        try:
-            creds.refresh(Request())
-            logger.info("OAuth2 token refreshed successfully")
-        except Exception as exc:  # noqa: BLE001
-            if _is_fatal_oauth_error(exc):
-                raise RuntimeError(
-                    f"OAuth2 token refresh failed with a permanent error: {exc}\n"
-                    f"{_REAUTH_HINT}"
-                ) from exc
-            logger.warning(
-                "Token refresh failed (will attempt upload with existing "
-                "access token): %s", exc,
-            )
+    if not creds.refresh_token:
+        raise RuntimeError(
+            "YOUTUBE_TOKEN contains no refresh_token — the stored credential "
+            "is incomplete.\n" + _REAUTH_HINT
+        )
+
+    try:
+        creds.refresh(Request())
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            f"OAuth2 token refresh failed: {exc}\n{_REAUTH_HINT}"
+        ) from exc
+
+    # After a successful refresh, google-auth may populate creds._scopes /
+    # creds._granted_scopes from the token response's "scope" field.  If
+    # those scopes are then sent in a subsequent refresh request (triggered
+    # by google-auth-httplib2's 401-retry), Google rejects with
+    # ``invalid_scope``.  Clearing them here prevents that leakage.
+    creds._scopes = None           # type: ignore[attr-defined]
+    creds._granted_scopes = None   # type: ignore[attr-defined]
+    logger.info("OAuth2 token refreshed successfully")
 
     return creds
+
+
+def validate_credentials() -> None:
+    """Validate that the YouTube OAuth2 credentials are working.
+
+    Builds credentials, refreshes the token, then makes a cheap API call
+    (``channels.list mine=True``) to confirm authentication is working.
+    Call this at the very start of the pipeline so auth failures fail fast
+    — before minutes of video rendering are wasted.
+
+    Raises:
+        RuntimeError: If credentials are missing, invalid, or the API call fails.
+    """
+    try:
+        from googleapiclient.discovery import build  # type: ignore[import]
+    except ImportError as exc:
+        raise RuntimeError("google-api-python-client is not installed") from exc
+
+    creds = _build_credentials()
+    youtube = build("youtube", "v3", credentials=creds, cache_discovery=False)
+
+    try:
+        response = youtube.channels().list(part="id", mine=True).execute()
+        items = response.get("items", [])
+        if items:
+            logger.info("Credentials valid — authenticated as channel: %s", items[0]["id"])
+        else:
+            logger.warning(
+                "Credentials valid but no channels found — ensure the OAuth "
+                "token was authorized by a YouTube channel owner account."
+            )
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(
+            f"YouTube API credential check failed: {exc}\n{_REAUTH_HINT}"
+        ) from exc
 
 
 def upload_video(
@@ -145,7 +187,7 @@ def upload_video(
         raise RuntimeError("google-api-python-client is not installed") from exc
 
     creds = _build_credentials()
-    youtube = build("youtube", "v3", credentials=creds)
+    youtube = build("youtube", "v3", credentials=creds, cache_discovery=False)
 
     body = {
         "snippet": {
