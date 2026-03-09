@@ -35,7 +35,8 @@ def _clean_text_for_tts(text: str) -> str:
     # Remove HTML entities
     cleaned = re.sub(r"&[a-zA-Z]+;", " ", cleaned)
     cleaned = re.sub(r"&#x?[0-9a-fA-F]+;", " ", cleaned)
-    # Remove stray angle brackets or ampersands
+    # Remove stray angle brackets; convert literal ampersands to "and"
+    # so the TTS voice says "and" instead of spelling out "ampersand"
     cleaned = cleaned.replace("<", " ").replace(">", " ").replace("&", " and ")
     # Collapse multiple spaces into one
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
