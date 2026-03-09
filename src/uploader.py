@@ -23,7 +23,7 @@ _FATAL_OAUTH_ERRORS = frozenset({"invalid_scope", "invalid_grant", "invalid_clie
 
 _REAUTH_HINT = (
     "Your YouTube OAuth2 credentials are invalid or expired.  To fix this:\n"
-    "  1. Re-run the OAuth2 authorization flow (see README § Quick Start).\n"
+    "  1. Re-run the OAuth2 authorization flow (see README - Quick Start).\n"
     "  2. Update the YOUTUBE_TOKEN GitHub Secret with the new token JSON.\n"
     "  3. Re-run the pipeline."
 )
