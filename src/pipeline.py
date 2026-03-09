@@ -102,7 +102,10 @@ def run_pipeline() -> None:
         logger.info("[4/6] Creating video…")
         from src.video_creator import create_video  # noqa: PLC0415
 
-        video_path = create_video(audio_path, caption_text, scenes, audio_duration,
+        # Pass full script text so every spoken word gets a caption.
+        # A single subtitle band in the lower third covers hook + body + CTA —
+        # no duplicate top subtitle.
+        video_path = create_video(audio_path, script_text, scenes, audio_duration,
                                   hook_text=hook_text)
         logger.info("      Video path: '%s'", video_path)
 

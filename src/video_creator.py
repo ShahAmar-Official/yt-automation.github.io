@@ -209,6 +209,49 @@ def _split_into_chunks(text: str, max_words: int = 6) -> list[str]:
     return [c for c in chunks if c]
 
 
+def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
+    """Convert a ``#RRGGBB`` hex string to an ``(R, G, B)`` tuple."""
+    h = hex_color.lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def _make_glow_pill_image(width: int, height: int, radius: int,
+                          bg_color: tuple[int, int, int],
+                          bg_opacity: float,
+                          glow_color: tuple[int, int, int],
+                          glow_radius: int) -> Any:
+    """Create a rounded-rectangle pill with a soft neon glow halo.
+
+    Renders the glow as a series of progressively-transparent concentric
+    rounded rectangles so it works without scipy / PIL ImageFilter.
+    """
+    import numpy as np
+
+    # Canvas is larger than the pill to accommodate the glow halo
+    pad = glow_radius
+    total_w = width + pad * 2
+    total_h = height + pad * 2
+    canvas = Image.new("RGBA", (total_w, total_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # Draw glow layers — outermost (faintest) to innermost (brightest)
+    glow_layers = max(4, glow_radius // 3)
+    for layer in range(glow_layers, 0, -1):
+        shrink = int((layer / glow_layers) * pad)
+        alpha = int(60 * (1 - layer / glow_layers))
+        gr, gg, gb = glow_color
+        rect = [(shrink, shrink), (total_w - 1 - shrink, total_h - 1 - shrink)]
+        draw.rounded_rectangle(rect, radius=radius + pad - shrink,
+                               fill=(*glow_color, alpha))
+
+    # Draw the solid pill on top
+    pill_alpha = int(255 * bg_opacity)
+    pill_rect = [(pad, pad), (pad + width - 1, pad + height - 1)]
+    draw.rounded_rectangle(pill_rect, radius=radius, fill=(*bg_color, pill_alpha))
+
+    return np.array(canvas), pad
+
+
 def _make_rounded_rect_image(width: int, height: int, radius: int,
                               color: tuple[int, int, int],
                               opacity: float) -> Any:
@@ -272,24 +315,25 @@ def _make_vignette_clip(w: int, h: int, duration: float) -> Any:
 
 def _build_caption_clips(script_text: str, total_duration: float, video_w: int, video_h: int,
                          start_offset: float = 0.0) -> list[Any]:
-    """Create professional TikTok-style word-burst captions with rounded pill backgrounds.
+    """Create modern neon-style TikTok word-burst captions.
+
+    Features:
+    - Single caption zone at the lower third — no top subtitle duplication.
+    - Neon glow pill backgrounds (cyan/yellow/pink palette).
+    - Word-proportional timing so each burst stays readable.
+    - Adaptive font: 1-word bursts render larger for maximum impact.
+    - Bold uppercase text with thick stroke for contrast on any background.
+    - Soft crossfade between bursts for a polished feel.
 
     Args:
-        script_text: Caption text to display (typically body+CTA, excluding hook).
+        script_text:    Caption text to display (full script or body+CTA).
         total_duration: Total video duration in seconds.
-        video_w: Video width in pixels.
-        video_h: Video height in pixels.
-        start_offset: Seconds to delay captions from the start (e.g. hook duration).
-
-    Improvements over the basic implementation:
-    - Word-proportional timing: each caption stays on screen proportional to its
-      word count so the viewer has enough time to read every burst.
-    - Adaptive font size: short 1-2 word bursts are rendered larger for impact
-      while longer phrases scale down to fit comfortably on screen.
-    - 6-colour cycling palette for visual variety across the video.
+        video_w:        Video width in pixels.
+        video_h:        Video height in pixels.
+        start_offset:   Seconds to delay captions from video start.
     """
     try:
-        from moviepy.editor import TextClip, ImageClip, CompositeVideoClip  # type: ignore[import]
+        from moviepy.editor import TextClip, ImageClip  # type: ignore[import]
     except Exception:  # noqa: BLE001
         return []
 
@@ -304,7 +348,7 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
         available_duration = total_duration
         start_offset = 0.0
 
-    # --- Word-proportional durations -------------------------------------------
+    # Word-proportional durations — longer chunks stay on screen longer
     if getattr(config, "SUBTITLE_WORD_TIMING", True) and len(chunks) > 1:
         word_counts = [max(1, len(c.split())) for c in chunks]
         total_words = sum(word_counts)
@@ -320,97 +364,129 @@ def _build_caption_clips(script_text: str, total_duration: float, video_w: int, 
         t += dur
 
     clips: list[Any] = []
-    y_pos = int(video_h * config.SUBTITLE_POSITION)
-    highlight = config.SUBTITLE_HIGHLIGHT_COLOR
-    secondary = getattr(config, "SUBTITLE_SECONDARY_COLOR", "#FFD700")
-    corner_radius = getattr(config, "SUBTITLE_BG_CORNER_RADIUS", 20)
-    shadow_offset = getattr(config, "SUBTITLE_SHADOW_OFFSET", 4)
 
-    # 6-colour cycling palette for visual variety
-    color_palette = ["white", highlight, secondary, "white", "#FF6B35", highlight]
+    # Caption vertical anchor — lower third, safely above bottom UI chrome
+    y_pos = int(video_h * getattr(config, "SUBTITLE_POSITION", 0.72))
+
+    # Neon colour palette: 3-colour cycling (yellow → mint → pink → repeat)
+    highlight  = getattr(config, "SUBTITLE_HIGHLIGHT_COLOR",  "#FFEE00")
+    secondary  = getattr(config, "SUBTITLE_SECONDARY_COLOR",  "#00FFC8")
+    accent     = getattr(config, "SUBTITLE_ACCENT_COLOR",     "#FF4081")
+    color_palette = [highlight, "white", secondary, highlight, accent, "white"]
+
+    corner_radius  = getattr(config, "SUBTITLE_BG_CORNER_RADIUS", 28)
+    shadow_offset  = getattr(config, "SUBTITLE_SHADOW_OFFSET", 3)
+    use_glow       = getattr(config, "SUBTITLE_GLOW", True)
+    glow_color_hex = getattr(config, "SUBTITLE_GLOW_COLOR", "#00FFC8")
+    glow_radius    = getattr(config, "SUBTITLE_GLOW_RADIUS", 18)
+    all_caps       = getattr(config, "SUBTITLE_ALL_CAPS", True)
+    font_name      = getattr(config, "SUBTITLE_FONT", "Liberation-Sans-Bold")
+    stroke_w       = getattr(config, "SUBTITLE_STROKE_WIDTH", 6)
+    base_font_size = getattr(config, "SUBTITLE_FONT_SIZE", 88)
+
+    glow_rgb = _hex_to_rgb(glow_color_hex)
 
     for i, chunk in enumerate(chunks):
         start = chunk_starts[i]
-        dur = chunk_durations[i]
-        crossfade = min(0.15, dur * 0.2)
+        dur   = chunk_durations[i]
+        crossfade = min(0.12, dur * 0.18)
         color = color_palette[i % len(color_palette)]
-        text_upper = chunk.upper()
+        display_text = chunk.upper() if all_caps else chunk
 
-        # Adaptive font size based on word count
         font_size = (
-            _adaptive_font_size(chunk, config.SUBTITLE_FONT_SIZE)
+            _adaptive_font_size(chunk, base_font_size)
             if getattr(config, "SUBTITLE_ADAPTIVE_FONT", True)
-            else config.SUBTITLE_FONT_SIZE
+            else base_font_size
         )
 
         try:
-            # Main text clip
+            # ------------------------------------------------------------------
+            # Build the main text clip
+            # ------------------------------------------------------------------
             txt_clip = TextClip(
-                text_upper,
+                display_text,
                 fontsize=font_size,
-                font=config.SUBTITLE_FONT,
+                font=font_name,
                 color=color,
                 stroke_color="black",
-                stroke_width=config.SUBTITLE_STROKE_WIDTH,
+                stroke_width=stroke_w,
                 method="caption",
-                size=(video_w - 100, None),
+                size=(video_w - 120, None),
                 align="center",
             )
             txt_w, txt_h = txt_clip.size
-            pad_x, pad_y = 30, 16
+            pad_x, pad_y = 36, 20
 
-            # Shadow text for depth effect
-            shadow_clip = TextClip(
-                text_upper,
-                fontsize=font_size,
-                font=config.SUBTITLE_FONT,
-                color="#000000",
-                stroke_color="#000000",
-                stroke_width=config.SUBTITLE_STROKE_WIDTH + 1,
-                method="caption",
-                size=(video_w - 100, None),
-                align="center",
-            )
-
-            # Rounded pill background using Pillow
+            # ------------------------------------------------------------------
+            # Pill background (with optional neon glow)
+            # ------------------------------------------------------------------
             bg_w = txt_w + pad_x * 2
             bg_h = txt_h + pad_y * 2
-            bg_img = _make_rounded_rect_image(
-                bg_w, bg_h, corner_radius,
-                color=(10, 10, 10), opacity=config.SUBTITLE_BG_OPACITY,
-            )
+
+            if use_glow:
+                bg_array, glow_pad = _make_glow_pill_image(
+                    bg_w, bg_h, corner_radius,
+                    bg_color=(8, 8, 8), bg_opacity=config.SUBTITLE_BG_OPACITY,
+                    glow_color=glow_rgb, glow_radius=glow_radius,
+                )
+            else:
+                bg_array = _make_rounded_rect_image(
+                    bg_w, bg_h, corner_radius,
+                    color=(8, 8, 8), opacity=config.SUBTITLE_BG_OPACITY,
+                )
+                glow_pad = 0
+
+            # Position the pill so its vertical centre aligns with y_pos
+            pill_y = y_pos - bg_h // 2 - glow_pad
             bg_clip = (
-                ImageClip(bg_img, ismask=False, transparent=True)
+                ImageClip(bg_array, ismask=False, transparent=True)
                 .set_start(start)
                 .set_duration(dur)
-                .set_position(("center", y_pos - pad_y))
+                .set_position(("center", pill_y))
                 .crossfadein(crossfade)
                 .crossfadeout(crossfade)
             )
 
-            # Shadow positioned slightly offset for depth
+            # ------------------------------------------------------------------
+            # Drop shadow — offset copy at reduced opacity
+            # ------------------------------------------------------------------
             shadow_clip = (
-                shadow_clip
+                TextClip(
+                    display_text,
+                    fontsize=font_size,
+                    font=font_name,
+                    color="#000000",
+                    stroke_color="#000000",
+                    stroke_width=stroke_w + 2,
+                    method="caption",
+                    size=(video_w - 120, None),
+                    align="center",
+                )
                 .set_start(start)
                 .set_duration(dur)
-                .set_position(("center", y_pos + shadow_offset))
-                .set_opacity(0.5)
+                .set_position(("center", y_pos - txt_h // 2 + shadow_offset))
+                .set_opacity(0.45)
                 .crossfadein(crossfade)
                 .crossfadeout(crossfade)
             )
 
-            # Main text
+            # ------------------------------------------------------------------
+            # Main text — vertically centred on y_pos
+            # ------------------------------------------------------------------
             txt_clip = (
                 txt_clip
                 .set_start(start)
                 .set_duration(dur)
-                .set_position(("center", y_pos))
+                .set_position(("center", y_pos - txt_h // 2))
                 .crossfadein(crossfade)
                 .crossfadeout(crossfade)
             )
+
             clips.extend([bg_clip, shadow_clip, txt_clip])
+
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not create caption clip for chunk %d: %s", i, exc)
+            logger.warning("Caption clip %d skipped: %s", i, exc)
+
     return clips
 
 # ---------------------------------------------------------------------------
@@ -426,13 +502,15 @@ def create_video(
     """Create a vertical 1080 × 1920 YouTube Shorts MP4 video.
 
     Args:
-        audio_path: Path to the TTS MP3 audio file.
-        script_text: Caption text (body+CTA, excluding hook) used for captions.
-        scenes: List of scene description strings (used for Pexels queries).
+        audio_path:     Path to the TTS MP3 audio file.
+        script_text:    Full narration script (hook + body + CTA).  Every
+                        spoken word is captioned in a single lower-third
+                        band — no duplicate top subtitle.
+        scenes:         List of scene description strings (used as Pexels
+                        search queries).
         audio_duration: Duration in seconds of the TTS audio.
-        hook_text: The hook text spoken at the start of the audio but excluded
-            from captions.  Used to calculate caption start offset so
-            subtitles stay synchronised with the spoken words.
+        hook_text:      Kept for API compatibility; no longer used
+                        internally now that the full script is captioned.
 
     Returns:
         Path to the exported MP4 file.
@@ -566,17 +644,13 @@ def create_video(
             base = base.set_audio(tts_audio)
 
         # ------------------------------------------------------------------
-        # 4. Captions — offset by estimated hook duration so subtitles
-        #    align with the spoken body text instead of the hook.
+        # 4. Captions — single band at lower third, covering the full script.
+        #    Removes the double-subtitle issue: all spoken words (including the
+        #    hook) are captioned in one consistent zone.  No top subtitle.
         # ------------------------------------------------------------------
-        hook_offset = 0.0
-        if hook_text:
-            full_word_count = len(hook_text.split()) + len(script_text.split())
-            hook_word_count = len(hook_text.split())
-            if full_word_count > 0:
-                hook_offset = target_duration * (hook_word_count / full_word_count)
-        caption_clips = _build_caption_clips(script_text, target_duration, w, h,
-                                             start_offset=hook_offset)
+        caption_clips = _build_caption_clips(
+            script_text, target_duration, w, h, start_offset=0.0
+        )
 
         # ------------------------------------------------------------------
         # 5. Compose layers: base video + captions + optional vignette
@@ -591,6 +665,29 @@ def create_video(
                 logger.warning("Vignette overlay failed: %s", exc)
 
         final = CompositeVideoClip(layers, size=(w, h)) if len(layers) > 1 else base
+
+        # ------------------------------------------------------------------
+        # 5b. Subtle cinematic colour grade — boost contrast and warmth
+        # ------------------------------------------------------------------
+        if getattr(config, "VIDEO_COLOR_GRADE", True):
+            try:
+                import numpy as np
+                from moviepy.editor import VideoClip  # type: ignore[import]
+
+                def _grade_frame(frame: Any) -> Any:
+                    """Apply a mild S-curve contrast + slight warm tint."""
+                    f = frame.astype("float32") / 255.0
+                    # S-curve: darken shadows, brighten highlights
+                    f = np.clip(f * 1.06 - 0.03, 0.0, 1.0)
+                    # Warm tint: nudge red up, blue down slightly
+                    f[:, :, 0] = np.clip(f[:, :, 0] * 1.04, 0.0, 1.0)
+                    f[:, :, 2] = np.clip(f[:, :, 2] * 0.97, 0.0, 1.0)
+                    return (f * 255).astype("uint8")
+
+                final = final.fl_image(_grade_frame)
+                logger.debug("Colour grade applied")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Colour grade skipped: %s", exc)
 
         # ------------------------------------------------------------------
         # 6. Fade-in / fade-out

@@ -33,10 +33,10 @@ class ScriptData(TypedDict):
 
 
 # ---------------------------------------------------------------------------
-# Hook templates — the critical first line that grabs attention
+# Hook templates — the critical first 5 seconds that make or break watch time
 # ---------------------------------------------------------------------------
 _HOOKS: list[str] = [
-    # News / authority hooks
+    # Authority / breaking news
     "Breaking developments in {topic} are reshaping the landscape as we speak.",
     "Industry leaders are calling {topic} the most significant shift of the decade.",
     "Here is what the latest data reveals about {topic} — and why it matters to you.",
@@ -47,20 +47,34 @@ _HOOKS: list[str] = [
     "If {topic} is not on your radar yet, this sixty-second briefing will change that.",
     "New analysis on {topic} has surfaced, and the results are impossible to ignore.",
     "Three pivotal insights about {topic} that will change how you see it entirely.",
-    # Curiosity / hidden-truth hooks
+    # Curiosity / hidden-truth
     "What most people get wrong about {topic} might actually cost them — here is the truth.",
     "The one detail about {topic} that mainstream coverage consistently overlooks.",
     "You have probably heard about {topic}, but the part they are not telling you is remarkable.",
     "Beneath the surface of {topic} lies a story that fundamentally changes the narrative.",
-    # Challenge / sceptic hooks
+    "Stop what you are doing — {topic} just changed in a way most people have not noticed.",
+    "Everyone is talking about {topic}, but nobody is telling you the most important part.",
+    # Challenge / sceptic
     "Even the harshest critics of {topic} are now acknowledging the mounting evidence.",
     "Sceptics of {topic} are rethinking their position after the latest data dropped.",
-    # Urgency hooks
+    "The people who dismissed {topic} are now quietly reversing course — here is why.",
+    # Urgency
     "The window to understand {topic} before it reshapes everything is narrowing fast.",
     "Time-sensitive insight on {topic}: here is what you need to act on right now.",
-    # Question / curiosity hooks
+    "In the next sixty seconds I am going to show you why {topic} demands your attention today.",
+    "Do not scroll past this — {topic} is developing faster than anyone predicted.",
+    # Emotional / storytelling
+    "A year ago, nobody took {topic} seriously. That changes right now.",
+    "The story of {topic} is not what you think — and the real version is far more compelling.",
+    "Here is the moment {topic} stopped being a theory and became an undeniable reality.",
+    # Question / curiosity
     "What if everything you assumed about {topic} turned out to be only half the story?",
     "Could {topic} be the single most important development shaping the next five years?",
+    "Why are the people closest to {topic} suddenly talking about it in hushed tones?",
+    "What does {topic} actually mean for you — and why should you care right now?",
+    # Number / list hook
+    "Five words that define the {topic} story right now: pivotal, verified, urgent, real, yours.",
+    "Three things the media gets wrong about {topic} — and one thing they got exactly right.",
 ]
 
 # ---------------------------------------------------------------------------
@@ -146,6 +160,44 @@ _BODIES: list[str] = [
         "follows. The evidence consistently favours those who act on informed "
         "analysis rather than waiting for consensus to form."
     ),
+    # New emotional / storytelling bodies
+    (
+        "Here is something the headlines rarely capture. {topic} is not just "
+        "a news story — it is a turning point that real people are living through "
+        "right now. Behind the data are individuals whose decisions, livelihoods, "
+        "and futures are directly shaped by how this unfolds. That human dimension "
+        "is precisely why understanding {topic} at a deeper level matters so much."
+    ),
+    (
+        "Let me share what I have found. Digging beyond the surface on {topic} "
+        "reveals a sequence of events that follows a remarkably consistent "
+        "pattern. Those who recognised the early signals repositioned quickly. "
+        "Those who waited are now playing catch-up. The gap between informed "
+        "and uninformed is widening, and the information in this brief is "
+        "designed to put you firmly on the right side of it."
+    ),
+    (
+        "The context you are missing changes everything. {topic} did not emerge "
+        "in a vacuum — it is the product of compounding forces that have been "
+        "building quietly for years. Now that critical mass has been reached, "
+        "the pace of change is accelerating. The smartest move right now is "
+        "to understand the full picture rather than reacting to fragments."
+    ),
+    (
+        "Picture this scenario. Six months from now, people will look back at "
+        "this moment as when the trajectory of {topic} became undeniable. "
+        "The evidence is not speculative — it is documented, peer-reviewed, "
+        "and corroborated by independent sources across multiple disciplines. "
+        "What you do with this information in the next few days genuinely matters."
+    ),
+    (
+        "The detail that changes your understanding: {topic} has a second-order "
+        "effect that almost nobody is discussing publicly. While the first-order "
+        "impact is visible in headlines, the downstream consequences are shaping "
+        "decisions at the highest levels of government, industry, and academia. "
+        "This is the level of analysis that separates informed observers from "
+        "those who are simply reacting to noise."
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -162,72 +214,92 @@ _CTAS: list[str] = [
     "If you made it this far, you are exactly the kind of thoughtful viewer this channel is built for. Subscribe now.",
     "Knowledge is the edge — share this with someone navigating {topic} and help them stay informed.",
     "Follow for sharp, concise analysis every day. Drop a comment: what is your biggest question about {topic}?",
+    # New power CTAs
+    "This is the kind of insight that travels. Share it with one person who needs to hear it — then subscribe for more.",
+    "Do not just watch — react. Leave your take on {topic} below. I read every comment.",
+    "Tap follow and set a reminder — the follow-up to this story is going to be even bigger.",
+    "If this changed how you see {topic}, the like button is how you say thank you to the algorithm. Do it.",
+    "The smartest thing you can do right now: subscribe, share, and stay informed. See you in the next one.",
 ]
 
 # ---------------------------------------------------------------------------
-# Scene description templates
+# Scene description templates — cinematic and high-energy for Pexels search
 # ---------------------------------------------------------------------------
 _SCENE_SETS: list[list[str]] = [
     [
-        "Dramatic aerial city skyline view",
-        "Person looking at phone screen",
-        "Fast-paced montage of news clips",
-        "Group of people having discussion",
-        "Bright colorful abstract motion graphics",
+        "Dramatic aerial city skyline at golden hour",
+        "Close-up person scrolling phone with concentration",
+        "Fast-paced montage glowing data screens",
+        "Group professionals in animated discussion boardroom",
+        "Abstract neon light trails motion blur",
     ],
     [
-        "Close-up of hands typing on laptop",
-        "Crowd of people in urban setting",
-        "Digital data visualization animation",
-        "Person presenting to camera confidently",
-        "Sunrise over modern cityscape horizon",
+        "Extreme close-up hands typing laptop keyboard",
+        "Wide angle crowd urban street rush hour",
+        "Digital data visualization holographic display",
+        "Confident presenter speaking direct to camera",
+        "Epic sunrise over modern glass skyscrapers",
     ],
     [
-        "Abstract technology background particles",
-        "Person walking through busy street",
-        "Charts and graphs on digital screen",
-        "Creative workspace with equipment",
-        "Time-lapse of clouds over landscape",
+        "Futuristic particle technology background dark",
+        "Slow motion person walking busy city street",
+        "Dramatic charts and graphs glowing monitor",
+        "Creative studio workspace professional lighting",
+        "Cinematic time-lapse storm clouds landscape",
     ],
     [
-        "Modern office with glass walls",
-        "Social media icons floating animation",
-        "Person reacting with surprise emotion",
-        "Colorful gradient abstract background",
-        "Night city lights bokeh view",
+        "Glass office building exterior reflections sky",
+        "Animated social media notifications explosion",
+        "Surprised person double-take reaction close-up",
+        "Vivid gradient neon abstract flowing background",
+        "Bokeh night city lights shallow depth field",
     ],
     [
-        "Drone aerial shot of busy intersection",
-        "Person reading on digital tablet device",
-        "Professional meeting in conference room",
-        "Fast moving traffic on highway overpass",
-        "Sunrise timelapse with city in foreground",
+        "Aerial drone swooping intersection rush hour",
+        "Focus pull tablet reading news articles",
+        "Tense professional meeting conference glass room",
+        "Highway traffic aerial fast hyperlapse",
+        "Sunrise timelapse skyline silhouette",
     ],
     [
-        "Close-up microphone on studio desk",
-        "Young professional looking at camera",
-        "Animated infographic with statistics",
-        "Busy coffee shop interior background",
-        "Hands holding smartphone with notifications",
+        "Professional broadcast microphone studio dark",
+        "Young confident creator looking straight camera",
+        "Animated statistics infographic bold colors",
+        "Warm coffee shop shallow focus background",
+        "Hands unlocking phone notification glow",
     ],
     [
-        "Futuristic holographic interface display",
-        "Team working together at whiteboard",
-        "Financial district skyscrapers exterior",
-        "Person jogging in nature at sunrise",
-        "Satellite imagery of earth from space",
+        "Futuristic holographic interface sci-fi glow",
+        "Team brainstorming whiteboard collaboration energy",
+        "Financial district skyscrapers low angle dramatic",
+        "Athlete sunrise training golden light",
+        "Earth from orbit satellite view cinematic",
     ],
     [
-        "Library books and knowledge concept",
-        "Entrepreneur at standing desk working",
-        "Social media engagement analytics screen",
-        "Crowd applauding at live event",
-        "Time-lapse of clouds moving fast",
+        "Stacked books knowledge library warm light",
+        "Entrepreneur standing desk focused working",
+        "Analytics dashboard engagement metrics glowing",
+        "Live event crowd energy hands raised",
+        "Dramatic clouds fast motion timelapse",
+    ],
+    [
+        "Underwater slow motion bubbles light rays",
+        "Desert road perspective vanishing point dramatic",
+        "Emergency lights flashing night dark city",
+        "Currency notes falling slow motion",
+        "Laboratory scientist close-up focus experiment",
+    ],
+    [
+        "Mountain peak above clouds cinematic wide shot",
+        "Chess pieces strategy close-up concept",
+        "Breaking news broadcast studio live",
+        "Handshake deal close-up confident",
+        "Abstract flowing lines network connection",
     ],
 ]
 
 # ---------------------------------------------------------------------------
-# Title templates
+# Title templates — SEO-strong, curiosity-driven, emoji-boosted
 # ---------------------------------------------------------------------------
 _TITLE_TEMPLATES: list[str] = [
     "{Topic} — What the Experts Are Saying 🔍",

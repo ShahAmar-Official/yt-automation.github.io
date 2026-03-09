@@ -11,17 +11,78 @@ Fallback engine: gTTS (Google's free TTS — works offline)
 Quality features:
 - Text sanitisation to strip any markup before synthesis
 - Post-generation loudness normalization via pydub
+- Rotating voice selection: a different neural voice (male/female) is chosen
+  on each run using a time-based seed so the channel sounds varied and fresh.
 """
 
 import asyncio
 import logging
 import re
 import tempfile
+import time
 from pathlib import Path
 
 import config
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Voice pool — 24 high-quality Microsoft neural voices (male + female,
+# diverse accents) available free via edge-tts.  A new voice is selected
+# every hour so each video sounds distinct.
+# ---------------------------------------------------------------------------
+_VOICE_POOL: list[dict] = [
+    # --- Female voices ---
+    {"name": "en-US-JennyNeural",        "gender": "female", "style": "newscast"},
+    {"name": "en-US-AriaNeural",         "gender": "female", "style": "chat"},
+    {"name": "en-US-SaraNeural",         "gender": "female", "style": "cheerful"},
+    {"name": "en-US-MichelleNeural",     "gender": "female", "style": "natural"},
+    {"name": "en-US-CoraNeural",         "gender": "female", "style": "natural"},
+    {"name": "en-US-ElizabethNeural",    "gender": "female", "style": "natural"},
+    {"name": "en-GB-SoniaNeural",        "gender": "female", "style": "natural"},
+    {"name": "en-GB-LibbyNeural",        "gender": "female", "style": "natural"},
+    {"name": "en-AU-NatashaNeural",      "gender": "female", "style": "natural"},
+    {"name": "en-CA-ClaraNeural",        "gender": "female", "style": "natural"},
+    {"name": "en-IN-NeerjaNeural",       "gender": "female", "style": "natural"},
+    {"name": "en-IE-EmilyNeural",        "gender": "female", "style": "natural"},
+    # --- Male voices ---
+    {"name": "en-US-GuyNeural",          "gender": "male",   "style": "newscast"},
+    {"name": "en-US-DavisNeural",        "gender": "male",   "style": "chat"},
+    {"name": "en-US-TonyNeural",         "gender": "male",   "style": "natural"},
+    {"name": "en-US-JasonNeural",        "gender": "male",   "style": "natural"},
+    {"name": "en-US-ChristopherNeural",  "gender": "male",   "style": "newscast"},
+    {"name": "en-US-EricNeural",         "gender": "male",   "style": "natural"},
+    {"name": "en-US-BrandonNeural",      "gender": "male",   "style": "natural"},
+    {"name": "en-GB-RyanNeural",         "gender": "male",   "style": "natural"},
+    {"name": "en-GB-ThomasNeural",       "gender": "male",   "style": "natural"},
+    {"name": "en-AU-WilliamNeural",      "gender": "male",   "style": "natural"},
+    {"name": "en-CA-LiamNeural",         "gender": "male",   "style": "natural"},
+    {"name": "en-IN-PrabhatNeural",      "gender": "male",   "style": "natural"},
+]
+
+
+def pick_voice() -> str:
+    """Return a voice name from ``_VOICE_POOL`` selected by the current hour.
+
+    The selection rotates through the full pool so each pipeline run (which
+    is scheduled hourly) uses a different voice character.  Alternates
+    naturally between male and female voices because the pool is ordered
+    female-first then male.
+
+    Returns:
+        The ``en-*-*Neural`` voice name string accepted by edge-tts.
+    """
+    # Fall back to config value if TTS_VOICE_ROTATE is explicitly disabled
+    if not getattr(config, "TTS_VOICE_ROTATE", True):
+        return config.TTS_VOICE
+
+    hour_index = int(time.time() // 3600)
+    voice_entry = _VOICE_POOL[hour_index % len(_VOICE_POOL)]
+    logger.info(
+        "Voice selected: %s (%s, %s)",
+        voice_entry["name"], voice_entry["gender"], voice_entry["style"],
+    )
+    return voice_entry["name"]
 
 
 def _clean_text_for_tts(text: str) -> str:
@@ -139,15 +200,16 @@ def generate_speech(script_text: str) -> tuple[Path, float]:
     try:
         import edge_tts  # type: ignore[import]  # noqa: F401 — check availability before asyncio.run
 
+        voice = pick_voice()
         asyncio.run(
             _generate_edge_tts(
                 clean_text,
                 str(audio_path),
-                config.TTS_VOICE,
+                voice,
                 config.TTS_RATE,
             )
         )
-        logger.info("TTS generated via edge-tts (voice: %s)", config.TTS_VOICE)
+        logger.info("TTS generated via edge-tts (voice: %s)", voice)
     except Exception as edge_exc:  # noqa: BLE001
         logger.warning("edge-tts failed (%s); falling back to gTTS", edge_exc)
 
