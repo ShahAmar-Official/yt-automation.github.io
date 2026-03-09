@@ -281,6 +281,11 @@ def get_trending_topics() -> list[str]:
     return combined
 
 
+_EVERGREEN_HASHTAGS: list[str] = [
+    "#Shorts", "#Trending", "#Viral", "#FYP", "#MustWatch",
+]
+
+
 def get_trending_hashtags(topics: list[str] | None = None, max_tags: int = 15) -> list[str]:
     """Generate trending hashtags from current trending topics.
 
@@ -298,10 +303,6 @@ def get_trending_hashtags(topics: list[str] | None = None, max_tags: int = 15) -
     """
     if topics is None:
         topics = get_trending_topics()
-
-    _EVERGREEN_HASHTAGS: list[str] = [
-        "#Shorts", "#Trending", "#Viral", "#FYP", "#MustWatch",
-    ]
 
     seen: set[str] = set()
     hashtags: list[str] = []

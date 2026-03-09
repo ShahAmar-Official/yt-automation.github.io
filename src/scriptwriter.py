@@ -485,6 +485,7 @@ def generate_script(topic: str) -> ScriptData:
         from src.trending import get_trending_hashtags  # noqa: PLC0415
         trending_hashtags = get_trending_hashtags(max_tags=10)
     except Exception:  # noqa: BLE001
+        logger.debug("Trending hashtags unavailable; falling back to topic tags", exc_info=True)
         trending_hashtags = []
 
     if trending_hashtags:
